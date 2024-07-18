@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 
+from src.dataset.ja_wiki_dataset import JaWikiDataset
 from src.dataset.slim_pajama_dataset import SlimPajamaDataset
 
 
@@ -29,8 +30,13 @@ class NlpDatasetGenerator:
                 print(
                     f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)"
                 )
-                slimPajamaDataset = SlimPajamaDataset(self.cfg, subset=subset)
-                self.datasets[subset] = NlpDataset(slimPajamaDataset.data)
+                slim_pajama_dataset = SlimPajamaDataset(self.cfg, subset=subset)
+                self.datasets[subset] = NlpDataset(slim_pajama_dataset.data)
+        if dataset_name == "ja_wiki":
+            for subset in self.subset:
+                print(f"Loading {subset} dataset from  ...(this may take a while)")
+                ja_wiki_dataset = JaWikiDataset(self.cfg, subset=subset)
+                self.datasets[subset] = NlpDataset(ja_wiki_dataset.data)
         else:
             raise ValueError(f"Dataset {dataset_name} not supported")
 

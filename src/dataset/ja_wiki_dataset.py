@@ -4,23 +4,19 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 
-class SlimPajamaDataset:
+class JaWikiDataset:
     def __init__(self, cfg, subset):
         self.cfg = cfg
         self._load_tokenizer()
 
-        self.data = self._load_slim_pajama(subset)
+        self.data = self._load_ja_wiki(subset=subset)
 
     # NOTE: This method takes time at first, but it's okay.
-    def _load_slim_pajama(self, subset) -> list[dict]:
-        # TODO: zstファイルの中身を
-        # urls = [f"{subset}/chunk{i}/*" for i in range(1, 3)]
+    def _load_ja_wiki(self, subset) -> list[dict]:
         row_text_ds = load_dataset(
-            "cerebras/SlimPajama-627B",
-            # TODO: data_filesに対する引数を本番環境用に変更
-            # data_files={"train": urls},
-            # data_files=f"{subset}/chunk1/example_train_0.jsonl.zst",
-            data_files=f"{subset}/chunk1/*",
+            # https://huggingface.co/datasets/fujiki/wiki40b_ja
+            "fujiki/wiki40b_ja",
+            # "izumi-lab/wikinews-ja-20230728",
             split=subset,
         )
         tokenized_ds = self._tokenize_dataset(row_text_ds)
