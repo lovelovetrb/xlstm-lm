@@ -63,6 +63,8 @@ multiprocess==0.70.16
     # via datasets
 networkx==3.3
     # via torch
+ninja==1.11.1.1
+    # via xlstm-lm
 numpy==1.26.4
     # via datasets
     # via pandas
