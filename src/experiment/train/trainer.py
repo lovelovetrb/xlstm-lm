@@ -2,6 +2,7 @@ import math
 import os
 
 import torch
+import wandb
 from tqdm import tqdm
 
 from src.utils import torch_dtype_map
@@ -34,7 +35,7 @@ class Trainer:
                     f"Steps {self.step+1}/{self.train_step_num} (Loss: {self.running_loss:.4f})"
                 )
                 self.train_step(batch)
-                self.step += 1
+                self.step_logging()
                 if self.step % self.config.training.val_every_step == 0:
                     print(
                         f"\nStep [{self.step+1}/{self.train_step_num}] (Epoch: {self.epoch}), Loss: {self.running_loss:.4f},"
@@ -42,7 +43,12 @@ class Trainer:
                     self.save_model(
                         f"{self.config.training.model_save_dir}/model_{self.step}.pth"
                     )
+                self.step += 1
             self.epoch += 1
+            wandb.alert(
+                title="Epoch Done",
+                text=f"Epoch {self.epoch-1} is done! Loss: {self.running_loss:.4f}",
+            )
 
     def train_step(self, batch):
         feature, label = batch["feature"], batch["label"]
@@ -71,3 +77,13 @@ class Trainer:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.model.state_dict(), path)
         print(f"Model has been saved to {path}")
+
+    def step_logging(self):
+        wandb.log(
+            {
+                "Loss": self.running_loss,
+                "Learning Rate": self.optimizer.param_groups[0]["lr"],
+                "Epoch": self.epoch,
+                "Step": self.step,
+            }
+        )
