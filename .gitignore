@@ -4,6 +4,9 @@ src/checkpoints/*
 debug/
 run/
 
+wandb/
+.pytest_cache/
+
 # python generated files
 __pycache__/
 *.py[oc]
