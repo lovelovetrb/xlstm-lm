@@ -4,17 +4,20 @@ from dacite import Config as DaciteConfig
 from dacite import from_dict
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
+from transformers import set_seed
 from xlstm import xLSTMLMModel, xLSTMLMModelConfig
 
 from src.cfg.load_yaml_cfg import load_config
 from src.dataset.nlp_dataset import NlpDatasetGenerator
 from src.experiment.train.lr_scheduler import LinearWarmupCosineAnnealing
 from src.experiment.train.trainer import Trainer
-from src.utils import torch_dtype_map
+from src.utils import torch_dtype_map, wandb_init
 
 
 def main():
-    config = load_config("src/cfg/yaml/test_config.yaml")
+    config = load_config("src/cfg/yaml/train_config_v2.yaml")
+    wandb_init(config)
+    set_seed(config.basic.seed)
 
     dataset = NlpDatasetGenerator(config)
     print("Dataset loaded! ")
@@ -46,11 +49,11 @@ def main():
     )
 
     lr_scheduler = LinearWarmupCosineAnnealing(
-        optimizer,
-        config.training.lr_warmup_steps,
-        config.training.lr_decay_until_steps,
-        config.training.lr,
-        config.training.lr_decay_factor * config.training.lr,
+        optimizer=optimizer,
+        warmup_steps=config.training.lr_warmup_steps,
+        decay_until_step=config.training.lr_decay_until_steps,
+        max_lr=config.training.lr,
+        min_lr=config.training.lr_decay_factor * config.training.lr,
     )
 
     criterion = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
