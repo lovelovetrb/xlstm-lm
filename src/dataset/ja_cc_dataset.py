@@ -1,28 +1,33 @@
 import torch
 from datasets import load_dataset
-from tqdm import tqdm
 from transformers import AutoTokenizer
 
 
-class JaWikiDataset:
+class JaCCDataset:
     def __init__(self, cfg, subset):
         self.cfg = cfg
         self._load_tokenizer()
-        self.data = self._load_ja_wiki(subset=subset)
+        self.data = self._load_cc100(subset=subset)
+        # self.data = self.data.filter(lambda x: len(x["text"]) < self.min_seq_length)
+        # self.data = self.data.map(lambda x: self._tokenize_dataset(x["text"]))
+        print(self.data)
 
-    # NOTE: This method takes time at first, but it's okay.
-    def _load_ja_wiki(self, subset) -> list[dict]:
-        if self.cfg.dataset.debug:
-            dataset_name = "izumi-lab/wikinews-ja-20230728"
+    def _load_cc100(self, subset) -> list[dict]:
+        if subset == "train":
+            ratio = self.cfg.dataset.train_ratio
+        elif subset == "valid":
+            ratio = self.cfg.dataset.valid_ratio
+        elif subset == "test":
+            ratio = self.cfg.dataset.test_ratio
         else:
-            # https://huggingface.co/datasets/fujiki/wiki40b_ja
-            dataset_name = "fujiki/wiki40b_ja"
+            raise ValueError(f"Subset {subset} not supported")
         row_text_ds = load_dataset(
-            dataset_name,
+            "cc100",
+            lang="ja",
             split=subset,
+            # num_proc=self.num_proc,
         )
-        tokenized_ds = self._tokenize_dataset(row_text_ds)
-        return tokenized_ds
+        return row_text_ds
 
     def _load_tokenizer(self):
         self._tokenizer = AutoTokenizer.from_pretrained(self.cfg.tokenizer.name)
@@ -35,24 +40,17 @@ class JaWikiDataset:
         self.bos_token_id = self._tokenizer.convert_tokens_to_ids("[BOS]")
         self.eos_token_id = self._tokenizer.convert_tokens_to_ids("[EOS]")
         self.pad_token_id = self._tokenizer.convert_tokens_to_ids("[PAD]")
+
         assert (
             self.pad_token_id == self.cfg.dataset.pad_token_id
         ), f"PAD token id expect {self.cfg.dataset.pad_token_id}, got {self.pad_token_id}"
 
-    def _tokenize_dataset(self, dataset) -> list[dict]:
-        tokenized_ds = []
-        for d in tqdm(dataset):
-            tokens = self._get_tokens(d["text"].replace("\n", ""))
-            if len(tokens["input_ids"][0]) < self.min_seq_length:
-                continue
+    def _tokenize_dataset(self, text):
+        tokens = self._get_tokens(text.replace("\n", ""))
 
-            input_ids, attention_mask = (
-                tokens["input_ids"][0],
-                tokens["attention_mask"][0],
-            )
-            data_dic = self._prepare_lm_features_and_labels(input_ids, attention_mask)
-            tokenized_ds.append({"text": d["text"], **data_dic})
-        return tokenized_ds
+        input_ids = tokens["input_ids"][0]
+        data_dic = self._prepare_lm_features_and_labels(input_ids)
+        return data_dic
 
     def _get_tokens(self, text):
         return self._tokenizer(
@@ -63,9 +61,7 @@ class JaWikiDataset:
             max_length=self.max_seq_length,
         )
 
-    def _prepare_lm_features_and_labels(
-        self, input_ids, attention_mask
-    ) -> dict[str, torch.Tensor]:
+    def _prepare_lm_features_and_labels(self, input_ids):
         def pad_sequence(seq, pad_length, pad_value) -> torch.Tensor:
             return torch.cat([seq, torch.full((pad_length,), pad_value)])
 
@@ -96,7 +92,12 @@ class JaWikiDataset:
             # NOTE: labelはEOSトークン分のみを考慮して、PADトークンを追加する数を計算
             label_pad_length = self.max_seq_length - len(input_ids) - 1
             label_input_ids = pad_sequence(
-                torch.cat([input_ids, torch.tensor([self.eos_token_id])]),
+                torch.cat(
+                    [
+                        input_ids,
+                        torch.tensor([self.eos_token_id]),
+                    ]
+                ),
                 label_pad_length,
                 self.pad_token_id,
             )
