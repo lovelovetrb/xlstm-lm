@@ -1,3 +1,4 @@
+import functools
 import os
 
 import torch
@@ -6,8 +7,11 @@ import torch.optim as optim
 from dacite import Config as DaciteConfig
 from dacite import from_dict
 from omegaconf import OmegaConf
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import ShardingStrategy
+from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.utils.data import DataLoader
-
+from torch.utils.data.distributed import DistributedSampler
 from transformers import set_seed
 from xlstm import xLSTMLMModel, xLSTMLMModelConfig
 
@@ -15,17 +19,28 @@ import wandb
 from src.cfg.load_yaml_cfg import load_config
 from src.dataset.nlp_dataset import NlpDatasetGenerator
 from src.experiment.train.lr_scheduler import LinearWarmupCosineAnnealing
-from src.experiment.train.trainer import Trainer
-
+from src.experiment.train.trainer_fsdp import TrainerFSDP
 from src.utils import dist_cleanup, dist_setup, torch_dtype_map, wandb_init
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-def main(config):
+def main(rank, world_size, config):
     wandb_init(config)
     set_seed(config.basic.seed)
+
+    pad_token_id = config.dataset.pad_token_id
+
+    dist_setup(rank, world_size)
+    torch.cuda.set_device(rank)
+
     dataset = NlpDatasetGenerator(config)
+    train_sampler = DistributedSampler(
+        dataset.train,
+        num_replicas=world_size,
+        rank=rank,
+        shuffle=True,
+    )
     train_loader = DataLoader(
         dataset.train,
         batch_size=config.training.batch_size,
@@ -33,10 +48,15 @@ def main(config):
         num_workers=1,
         pin_memory=True,
         shuffle=False,
+        sampler=train_sampler,
     )
-    print("Dataset loaded! ")
-    print(f"Train dataset size: {len(dataset.train)}")
+    if rank == 0:
+        print("Dataset loaded! ")
+        print(f"Train dataset size: {len(dataset.train)}")
 
+    my_auto_wrap_policy = functools.partial(
+        size_based_auto_wrap_policy, min_num_params=100
+    )
     model_config = from_dict(
         data_class=xLSTMLMModelConfig,
         data=OmegaConf.to_container(config.model, resolve=True),
@@ -46,10 +66,15 @@ def main(config):
     model.reset_parameters()
     model.train()
     model = model.to(dtype=torch_dtype_map[config.training.weight_precision])
-    model = model.to(config.basic.device)
+    model = model.to(rank)
 
     optim_groups = model._create_weight_decay_optim_groups()
 
+    model = FSDP(
+        model,
+        sharding_strategy=ShardingStrategy.NO_SHARD,
+        auto_wrap_policy=my_auto_wrap_policy,
+    )
     optimizer = optim.AdamW(
         (
             {"weight_decay": config.training.weight_decay, "params": optim_groups[0]},
@@ -70,17 +95,19 @@ def main(config):
 
     criterion = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
 
-    trainer = Trainer(
-        model, train_loader, lr_scheduler, optimizer, criterion, config, rank=0
+    trainer = TrainerFSDP(
+        model, train_loader, lr_scheduler, optimizer, criterion, config, rank
     )
     trainer.train()
-    print("Training finished!")
+    if rank == 0:
+        print("Training finished!")
+    dist_cleanup()
     wandb.finish()
 
 
 if __name__ == "__main__":
     config = load_config("src/cfg/yaml/v4/train_config.yaml")
-    try:
-        main(config)
-    except Exception as e:
-        print(e)
+
+    WORLD_SIZE = torch.cuda.device_count()
+
+    mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)
