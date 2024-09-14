@@ -4,23 +4,21 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 
-class SlimPajamaDataset:
+class JaWikiDataset:
     def __init__(self, cfg, subset):
         self.cfg = cfg
         self._load_tokenizer()
-
-        self.data = self._load_slim_pajama(subset)
+        self.data = self._load_ja_wiki(subset=subset)
 
     # NOTE: This method takes time at first, but it's okay.
-    def _load_slim_pajama(self, subset) -> list[dict]:
-        # TODO: zstファイルの中身を
-        # urls = [f"{subset}/chunk{i}/*" for i in range(1, 3)]
+    def _load_ja_wiki(self, subset) -> list[dict]:
+        if self.cfg.dataset.debug:
+            dataset_name = "izumi-lab/wikinews-ja-20230728"
+        else:
+            # https://huggingface.co/datasets/fujiki/wiki40b_ja
+            dataset_name = "fujiki/wiki40b_ja"
         row_text_ds = load_dataset(
-            "cerebras/SlimPajama-627B",
-            # TODO: data_filesに対する引数を本番環境用に変更
-            # data_files={"train": urls},
-            # data_files=f"{subset}/chunk1/example_train_0.jsonl.zst",
-            data_files=f"{subset}/chunk1/*",
+            dataset_name,
             split=subset,
         )
         tokenized_ds = self._tokenize_dataset(row_text_ds)
@@ -37,13 +35,14 @@ class SlimPajamaDataset:
         self.bos_token_id = self._tokenizer.convert_tokens_to_ids("[BOS]")
         self.eos_token_id = self._tokenizer.convert_tokens_to_ids("[EOS]")
         self.pad_token_id = self._tokenizer.convert_tokens_to_ids("[PAD]")
-        print(f"pad_token_id: {self.pad_token_id}")
+        assert (
+            self.pad_token_id == self.cfg.dataset.pad_token_id
+        ), f"PAD token id expect {self.cfg.dataset.pad_token_id}, got {self.pad_token_id}"
 
     def _tokenize_dataset(self, dataset) -> list[dict]:
         tokenized_ds = []
-        print("tokenizing dataset")
         for d in tqdm(dataset):
-            tokens = self._get_tokens(d["text"])
+            tokens = self._get_tokens(d["text"].replace("\n", ""))
             if len(tokens["input_ids"][0]) < self.min_seq_length:
                 continue
 
