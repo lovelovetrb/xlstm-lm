@@ -17,6 +17,7 @@ dependencies = [
     "setuptools>=70.1.0",
     "zstandard>=0.22.0",
     "ninja>=1.11.1.1",
+    "wandb>=0.17.5",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -33,4 +34,4 @@ dev-dependencies = []
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xlstm_lm"]
+packages = ["src/"]

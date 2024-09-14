@@ -9,35 +9,75 @@
 #   generate-hashes: false
 
 -e file:.
+aiohttp==3.9.5
+    # via datasets
+    # via fsspec
+aiosignal==1.3.1
+    # via aiohttp
 antlr4-python3-runtime==4.9.3
     # via omegaconf
+attrs==23.2.0
+    # via aiohttp
 certifi==2024.6.2
     # via requests
+    # via sentry-sdk
 charset-normalizer==3.3.2
     # via requests
+click==8.1.7
+    # via wandb
+dacite==1.8.1
+    # via xlstm-lm
+datasets==2.20.0
+    # via xlstm-lm
+dill==0.3.8
+    # via datasets
+    # via multiprocess
+docker-pycreds==0.4.0
+    # via wandb
 filelock==3.15.1
+    # via datasets
     # via huggingface-hub
     # via torch
     # via transformers
-fsspec==2024.6.0
+frozenlist==1.4.1
+    # via aiohttp
+    # via aiosignal
+fsspec==2024.5.0
+    # via datasets
     # via huggingface-hub
     # via torch
+gitdb==4.0.11
+    # via gitpython
+gitpython==3.1.43
+    # via wandb
 huggingface-hub==0.23.3
+    # via datasets
     # via tokenizers
     # via transformers
 idna==3.7
     # via requests
+    # via yarl
+iniconfig==2.0.0
+    # via pytest
 jinja2==3.1.4
     # via torch
 markupsafe==2.1.5
     # via jinja2
 mpmath==1.3.0
     # via sympy
+multidict==6.0.5
+    # via aiohttp
+    # via yarl
+multiprocess==0.70.16
+    # via datasets
 networkx==3.3
     # via torch
 ninja==1.11.1.1
     # via xlstm-lm
 numpy==1.26.4
+    # via datasets
+    # via pandas
+    # via pyarrow
     # via transformers
 nvidia-cublas-cu12==12.1.3.1
     # via nvidia-cudnn-cu12
@@ -70,19 +110,57 @@ nvidia-nvtx-cu12==12.1.105
 omegaconf==2.3.0
     # via xlstm-lm
 packaging==24.1
+    # via datasets
     # via huggingface-hub
+    # via pytest
     # via transformers
+pandas==2.2.2
+    # via datasets
+platformdirs==4.2.2
+    # via wandb
+pluggy==1.5.0
+    # via pytest
+protobuf==5.27.2
+    # via wandb
+psutil==6.0.0
+    # via wandb
+pyarrow==16.1.0
+    # via datasets
+pyarrow-hotfix==0.6
+    # via datasets
+pytest==8.2.2
+    # via xlstm-lm
+python-dateutil==2.9.0.post0
+    # via pandas
+pytz==2024.1
+    # via pandas
 pyyaml==6.0.1
+    # via datasets
     # via huggingface-hub
     # via omegaconf
     # via transformers
+    # via wandb
 regex==2024.5.15
     # via transformers
 requests==2.32.3
+    # via datasets
     # via huggingface-hub
     # via transformers
+    # via wandb
 safetensors==0.4.3
     # via transformers
+sentry-sdk==2.10.0
+    # via wandb
+setproctitle==1.3.3
+    # via wandb
+setuptools==70.1.0
+    # via wandb
+    # via xlstm-lm
+six==1.16.0
+    # via docker-pycreds
+    # via python-dateutil
+smmap==5.0.1
+    # via gitdb
 sympy==1.12.1
     # via torch
 tokenizers==0.19.1
@@ -90,14 +168,27 @@ tokenizers==0.19.1
 torch==2.3.1
     # via xlstm-lm
 tqdm==4.66.4
+    # via datasets
     # via huggingface-hub
     # via transformers
+    # via xlstm-lm
 transformers==4.41.2
     # via xlstm-lm
 typing-extensions==4.12.2
     # via huggingface-hub
     # via torch
+tzdata==2024.1
+    # via pandas
 urllib3==2.2.1
     # via requests
+    # via sentry-sdk
+wandb==0.17.5
+    # via xlstm-lm
 xlstm==1.0.3
+    # via xlstm-lm
+xxhash==3.4.1
+    # via datasets
+yarl==1.9.4
+    # via aiohttp
+zstandard==0.22.0
     # via xlstm-lm
