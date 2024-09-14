@@ -1,7 +1,6 @@
 import os
 
 import torch
-import torch.multiprocessing as mp
 import torch.optim as optim
 from dacite import Config as DaciteConfig
 from dacite import from_dict
@@ -16,8 +15,7 @@ from src.cfg.load_yaml_cfg import load_config
 from src.dataset.nlp_dataset import NlpDatasetGenerator
 from src.experiment.train.lr_scheduler import LinearWarmupCosineAnnealing
 from src.experiment.train.trainer import Trainer
-
-from src.utils import dist_cleanup, dist_setup, torch_dtype_map, wandb_init
+from src.utils import torch_dtype_map, wandb_init
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -25,6 +23,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 def main(config):
     wandb_init(config)
     set_seed(config.basic.seed)
+
+    pad_token_id = config.dataset.pad_token_id
+
     dataset = NlpDatasetGenerator(config)
     train_loader = DataLoader(
         dataset.train,
@@ -61,11 +62,11 @@ def main(config):
     )
 
     lr_scheduler = LinearWarmupCosineAnnealing(
-        optimizer=optimizer,
-        warmup_steps=config.training.lr_warmup_steps,
-        decay_until_step=config.training.lr_decay_until_steps,
-        max_lr=config.training.lr,
-        min_lr=config.training.lr_decay_factor * config.training.lr,
+        optimizer,
+        config.training.lr_warmup_steps,
+        config.training.lr_decay_until_steps,
+        config.training.lr,
+        config.training.lr_decay_factor * config.training.lr,
     )
 
     criterion = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
