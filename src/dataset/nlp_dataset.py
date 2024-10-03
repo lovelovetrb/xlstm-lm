@@ -114,12 +114,6 @@ class NlpDatasetGenerator:
                 print(
                     f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)"
                 )
-<<<<<<< Updated upstream
-                slimPajamaDataset = SlimPajamaDataset(self.cfg, subset=subset)
-                self.datasets[subset] = NlpDataset(slimPajamaDataset.data)
-        else:
-            raise ValueError(f"Dataset {dataset_name} not supported")
-=======
                 slim_pajama_dataset = SlimPajamaDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(slim_pajama_dataset.data, self.cfg)
             elif dataset_name == "ja_wiki":
@@ -136,7 +130,6 @@ class NlpDatasetGenerator:
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg)
             else:
                 raise ValueError(f"Dataset {dataset_name} not supported")
->>>>>>> Stashed changes
 
     @property
     def train(self):

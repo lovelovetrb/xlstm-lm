@@ -26,6 +26,7 @@ class JaCCDataset:
             lang="ja",
             split=subset,
             # num_proc=self.num_proc,
+            trust_remote_code=True,
         )
         return row_text_ds
 
