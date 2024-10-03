@@ -1,3 +1,4 @@
+import argparse
 import functools
 import os
 
@@ -55,7 +56,7 @@ def main(rank, world_size, config):
         print(f"Train dataset size: {len(dataset.train)}")
 
     my_auto_wrap_policy = functools.partial(
-        size_based_auto_wrap_policy, min_num_params=100
+        size_based_auto_wrap_policy, min_num_params=10000000
     )
     model_config = from_dict(
         data_class=xLSTMLMModelConfig,
@@ -68,18 +69,23 @@ def main(rank, world_size, config):
     model = model.to(dtype=torch_dtype_map[config.training.weight_precision])
     model = model.to(rank)
 
-    optim_groups = model._create_weight_decay_optim_groups()
+    def param_init_fn(module):
+        optim_groups = module._create_weight_decay_optim_groups()
+        return (
+            {"weight_decay": config.training.weight_decay, "params": optim_groups[0]},
+            {"weight_decay": 0.0, "params": optim_groups[1]},
+        )
 
     model = FSDP(
         model,
-        sharding_strategy=ShardingStrategy.NO_SHARD,
+        sharding_strategy=ShardingStrategy.SHARD_GRAD_OP,
         auto_wrap_policy=my_auto_wrap_policy,
+        device_id=torch.cuda.current_device(),
+        param_init_fn=param_init_fn
     )
+
     optimizer = optim.AdamW(
-        (
-            {"weight_decay": config.training.weight_decay, "params": optim_groups[0]},
-            {"weight_decay": 0.0, "params": optim_groups[1]},
-        ),
+        model.parameters(),
         lr=config.training.lr,
         betas=(0.9, 0.95),
         eps=1e-5,
@@ -106,8 +112,10 @@ def main(rank, world_size, config):
 
 
 if __name__ == "__main__":
-    config = load_config("src/cfg/yaml/v4/train_config.yaml")
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str)
+    args = parser.parse_args()
+    config = load_config(args.config)
     WORLD_SIZE = torch.cuda.device_count()
 
     mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)
