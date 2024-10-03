@@ -12,7 +12,7 @@ torch_dtype_map: dict[str, torch.dtype] = {
 
 def wandb_init(config):
     wandb.init(
-        project="xlstm_train_v2",
+        project=config.basic.project_name,
         config=config,
     )
 
