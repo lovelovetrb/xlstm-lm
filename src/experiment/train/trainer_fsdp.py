@@ -27,9 +27,7 @@ class TrainerFSDP:
 
         self.step = 0
         self.epoch = 1
-        self.train_step_num = len(train_loader)
         self.running_loss = torch.tensor(0.0).to(self.rank)
-        print(f"Train Step Num: {self.train_step_num}")
 
     def train(self):
         # TODO: loggingに変更
@@ -41,7 +39,7 @@ class TrainerFSDP:
                 print(f"######### Epoch {self.epoch} #########")
             for batch in monitoring:
                 monitoring.set_description_str(
-                    f"Rank {self.rank} Steps {self.step+1}/{self.train_step_num} (Loss: {self.running_loss:.4f})"
+                    f"Rank {self.rank} Steps {self.step+1} (Loss: {self.running_loss:.4f})"
                 )
                 self.train_step(batch)
                 self.step_logging()
@@ -72,7 +70,10 @@ class TrainerFSDP:
             self.optimizer.step()
             self.lr_scheduler.step()
             self.running_loss = loss.item()
+
+            del outputs, loss
             if math.isnan(self.running_loss):
+                print(self.running_loss)
                 raise ValueError("Loss is NaN!")
 
     def valid_step(self):
