@@ -12,13 +12,12 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 from transformers import set_seed
 from xlstm import xLSTMLMModel, xLSTMLMModelConfig
 
 import wandb
 from src.cfg.load_yaml_cfg import load_config
-from src.dataset.nlp_dataset import NlpDatasetGenerator
+from src.dataset.nlp_dataset import DistributedIterableWrapper, NlpDatasetGenerator
 from src.experiment.train.lr_scheduler import LinearWarmupCosineAnnealing
 from src.experiment.train.trainer_fsdp import TrainerFSDP
 from src.utils import dist_cleanup, dist_setup, torch_dtype_map, wandb_init
@@ -36,24 +35,17 @@ def main(rank, world_size, config):
     torch.cuda.set_device(rank)
 
     dataset = NlpDatasetGenerator(config)
-    train_sampler = DistributedSampler(
-        dataset.train,
-        num_replicas=world_size,
-        rank=rank,
-        shuffle=True,
-    )
+    distributed_dataset = DistributedIterableWrapper(dataset.train, world_size, rank)
     train_loader = DataLoader(
-        dataset.train,
+        distributed_dataset,
         batch_size=config.training.batch_size,
         drop_last=True,
         num_workers=1,
         pin_memory=True,
         shuffle=False,
-        sampler=train_sampler,
     )
     if rank == 0:
         print("Dataset loaded! ")
-        print(f"Train dataset size: {len(dataset.train)}")
 
     my_auto_wrap_policy = functools.partial(
         size_based_auto_wrap_policy, min_num_params=10000000
@@ -81,7 +73,7 @@ def main(rank, world_size, config):
         sharding_strategy=ShardingStrategy.SHARD_GRAD_OP,
         auto_wrap_policy=my_auto_wrap_policy,
         device_id=torch.cuda.current_device(),
-        param_init_fn=param_init_fn
+        param_init_fn=param_init_fn,
     )
 
     optimizer = optim.AdamW(
