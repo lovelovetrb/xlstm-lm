@@ -10,10 +10,17 @@ torch_dtype_map: dict[str, torch.dtype] = {
 }
 
 
+def is_serializable(value):
+    return isinstance(value, (int, float, str, bool))
+
+
 def wandb_init(config):
+    config_serializable = {
+        key: value for key, value in config.items() if is_serializable(value)
+    }
     wandb.init(
         project=config.basic.project_name,
-        config=config,
+        config=config_serializable,
     )
 
 
