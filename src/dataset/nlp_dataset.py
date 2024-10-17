@@ -1,5 +1,8 @@
+import itertools
+import math
+
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import IterableDataset
 from transformers import AutoTokenizer
 
 from src.dataset.ja_cc_dataset import JaCCDataset
@@ -7,18 +10,48 @@ from src.dataset.ja_wiki_dataset import JaWikiDataset
 from src.dataset.slim_pajama_dataset import SlimPajamaDataset
 
 
-class NlpDataset(Dataset):
+class DistributedIterableWrapper(IterableDataset):
+    def __init__(self, dataset, num_replicas, rank):
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            worker_id = 0
+            num_workers = 1
+        else:
+            worker_id = worker_info.id
+            num_workers = worker_info.num_workers
+
+        # 各ワーカーとランクの組み合わせに対して一意のシードを生成
+        seed = self.rank * 10000 + worker_id
+        torch.manual_seed(seed)
+
+        # データセットのイテレータを取得
+        dataset_iter = iter(self.dataset)
+
+        for i, item in enumerate(dataset_iter):
+            # この項目が現在のランクとワーカーに属するかを確認
+            if i % (self.num_replicas * num_workers) == self.rank * num_workers + worker_id:
+                yield item
+
+
+class NlpDataset(IterableDataset):
     def __init__(self, data, cfg):
         self.data = data
         self.cfg = cfg
         self._load_tokenizer()
 
-    def __len__(self):
-        return len(self.data)
+    # def __len__(self):
+    #     return len(self.data)
 
-    def __getitem__(self, idx):
-        tokenized_data = self._tokenize_dataset(self.data[idx]["text"])
-        return tokenized_data
+    # def __getitem__(self, idx):
+    def __iter__(self):
+        for item in self.data:
+            tokenized_data = self._tokenize_dataset(item["text"])
+            yield tokenized_data
 
     def _load_tokenizer(self):
         self._tokenizer = AutoTokenizer.from_pretrained(self.cfg.tokenizer.name)
