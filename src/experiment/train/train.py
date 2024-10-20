@@ -24,11 +24,12 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def setup_training(
-    rank: int, world_size: int, config: ExperimentConfig
+    rank: int, world_size: int, config: ExperimentConfig, logger: logging.Logger
 ) -> Tuple[torch.nn.Module, DataLoader, optim.Optimizer, torch.nn.Module, torch.nn.Module]:
+    logger.info(f"Rank {rank}: Setting up training...")
     wandb_init(config)
     set_seed(config.basic.seed)
-    dist_setup(rank, world_size)
+    dist_setup(rank, world_size, logger)
 
     train_loader = setup_dataset(config, rank, world_size)
     model = setup_model(config, rank)
@@ -46,7 +47,7 @@ def cleanup() -> None:
 
 def main(rank: int, world_size: int, config: ExperimentConfig, logger: logging.Logger) -> None:
     try:
-        model, train_loader, lr_scheduler, optimizer, criterion = setup_training(rank, world_size, config)
+        model, train_loader, lr_scheduler, optimizer, criterion = setup_training(rank, world_size, config, logger)
         trainer = Trainer(model, train_loader, lr_scheduler, optimizer, criterion, config, rank, logger)
         trainer.train()
     except Exception as e:

@@ -27,7 +27,7 @@ def wandb_init(config):
     )
 
 
-def dist_setup(rank, world_size):
+def dist_setup(rank, world_size, logger):
     try:
         dist.init_process_group(
             backend="nccl",
@@ -36,9 +36,9 @@ def dist_setup(rank, world_size):
             timeout=datetime.timedelta(minutes=30),
         )
         torch.cuda.set_device(rank)
-        print(f"Rank {dist.get_rank()}: Process group initialized")
+        logger.info(f"Rank {dist.get_rank()}: Process group initialized")
     except Exception as e:
-        print(f"Failed to initialize process group: {e}")
+        logger.error(f"Failed to initialize process group: {e}")
         raise
 
 
