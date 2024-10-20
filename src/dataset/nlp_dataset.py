@@ -1,10 +1,8 @@
-import itertools
-import math
-
 import torch
 from torch.utils.data import IterableDataset
 from transformers import AutoTokenizer
 
+from src.cfg.config_type import ExperimentConfig
 from src.dataset.ja_cc_dataset import JaCCDataset
 from src.dataset.ja_wiki_dataset import JaWikiDataset
 from src.dataset.slim_pajama_dataset import SlimPajamaDataset
@@ -44,10 +42,6 @@ class NlpDataset(IterableDataset):
         self.cfg = cfg
         self._load_tokenizer()
 
-    # def __len__(self):
-    #     return len(self.data)
-
-    # def __getitem__(self, idx):
     def __iter__(self):
         for item in self.data:
             tokenized_data = self._tokenize_dataset(item["text"])
@@ -58,9 +52,7 @@ class NlpDataset(IterableDataset):
         self.max_seq_length = self.cfg.dataset.max_seq_length
         self.min_seq_length = self.cfg.dataset.min_seq_length
 
-        self._tokenizer.add_special_tokens(
-            {"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"}
-        )
+        self._tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
         self.bos_token_id = self._tokenizer.convert_tokens_to_ids("[BOS]")
         self.eos_token_id = self._tokenizer.convert_tokens_to_ids("[EOS]")
         self.pad_token_id = self._tokenizer.convert_tokens_to_ids("[PAD]")
@@ -95,9 +87,7 @@ class NlpDataset(IterableDataset):
             )
             label_input_ids = input_ids
         elif len(input_ids) == self.max_seq_length - 1:
-            feature_input_ids = torch.cat(
-                [torch.tensor([self.bos_token_id]), input_ids]
-            )
+            feature_input_ids = torch.cat([torch.tensor([self.bos_token_id]), input_ids])
             label_input_ids = torch.cat([input_ids, torch.tensor([self.eos_token_id])])
         else:
             # NOTE: BOSトークン・EOSトークン分を考慮して、PADトークンを追加する数を計算
@@ -134,7 +124,7 @@ class NlpDataset(IterableDataset):
 
 class NlpDatasetGenerator:
     # TODO: cfgの型を定義
-    def __init__(self, cfg):
+    def __init__(self, cfg: ExperimentConfig):
         self.cfg = cfg
         self.subset = cfg.dataset.subset
         self.datasets = {}
@@ -144,21 +134,15 @@ class NlpDatasetGenerator:
         for subset in self.subset:
             if dataset_name == "slim_pajama":
                 # TODO: loggingに変更
-                print(
-                    f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)"
-                )
+                print(f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)")
                 slim_pajama_dataset = SlimPajamaDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(slim_pajama_dataset.data, self.cfg)
             elif dataset_name == "ja_wiki":
-                print(
-                    f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)"
-                )
+                print(f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)")
                 ja_wiki_dataset = JaWikiDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_wiki_dataset.data, self.cfg)
             elif dataset_name == "ja_cc_wiki":
-                print(
-                    f"Loading {subset} dataset from ja_cc_wiki...(this may take a while)"
-                )
+                print(f"Loading {subset} dataset from ja_cc_wiki...(this may take a while)")
                 ja_cc_wiki_dataset = JaCCDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg)
             else:
