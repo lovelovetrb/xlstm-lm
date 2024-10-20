@@ -35,3 +35,25 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]
+
+## https://gihyo.jp/article/2023/03/monthly-python-2303
+## 略称一覧: https://pypi.org/project/ruff/0.0.242/#supported-rule
+[tool.ruff]
+line-length = 120
+
+lint.select = ["ALL"]
+lint.ignore = [
+    "D",
+]
+
+# ファイル毎に無効とする設定
+# https://docs.astral.sh/ruff/settings/#lint_per-file-ignores
+[tool.ruff.lint.per-file-ignores]
+"*.py" = [
+    "ANN101",
+    "COM812",
+    "ISC001",
+    "ERA001",
+    "INP001",
+    "TRY002",
+]
