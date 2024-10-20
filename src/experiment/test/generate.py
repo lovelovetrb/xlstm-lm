@@ -55,9 +55,7 @@ def main():
     model = model.to(config.basic.device)
 
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.name)
-    tokenizer.add_special_tokens(
-        {"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"}
-    )
+    tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
     eos_token_id = tokenizer.eos_token_id
 
     text = "[BOS]静岡大学は、"

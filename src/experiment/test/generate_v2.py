@@ -1,13 +1,18 @@
+import argparse
+
 import torch
+import torch.multiprocessing as mp
 import torch.nn.functional as F
 from dacite import Config as DaciteConfig
 from dacite import from_dict
 from omegaconf import OmegaConf
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from transformers import AutoTokenizer, set_seed
 from xlstm import xLSTMLMModel, xLSTMLMModelConfig
 
 from src.cfg.load_yaml_cfg import load_config
-from src.utils import torch_dtype_map
+from src.utils import dist_cleanup, dist_setup, torch_dtype_map
+
 
 def generate_text(
     model,
@@ -22,7 +27,7 @@ def generate_text(
     num_return_sequences=1,
     use_beam_search=False,
     num_beams=5,
-    length_penalty=1.0
+    length_penalty=1.0,
 ):
     batch_size = start_sequence.shape[0]
     vocab_size = model.config.vocab_size
@@ -35,8 +40,15 @@ def generate_text(
 
         for _ in range(max_length):
             model_inputs = beam_sequences
+
+            if model_inputs.shape[1] > max_length:
+                model_inputs = model_inputs[:, -max_length:]
+                print(f"Truncated input to length: {model_inputs.shape[1]}")
+
             outputs = model(model_inputs)
             next_token_logits = outputs[:, -1, :]
+
+            del model_inputs
 
             # Apply temperature
             next_token_logits = next_token_logits / temperature
@@ -77,15 +89,20 @@ def generate_text(
                     score = topk_scores[batch_idx][beam_idx]
                     beam_idx = beam_indices[batch_idx][beam_idx]
 
-                    seq = torch.cat([beam_sequences[batch_idx * num_beams + beam_idx], token_id.unsqueeze(0)], dim=-1)
+                    seq = torch.cat(
+                        [
+                            beam_sequences[batch_idx * num_beams + beam_idx],
+                            token_id.unsqueeze(0),
+                        ],
+                        dim=-1,
+                    )
                     new_sequences.append(seq)
                     new_scores.append(score)
-
 
                     if token_id.item() == eos_token_id:
                         print("eos_token_id is generated.")
                         done[batch_idx] = True
-                   
+
             beam_sequences = torch.stack(new_sequences).view(batch_size * num_beams, -1)
             beam_scores = torch.tensor(new_scores, device=start_sequence.device).view(batch_size, num_beams)
 
@@ -106,7 +123,7 @@ def generate_text(
         for _ in range(max_length):
             with torch.no_grad():
                 outputs = model(current_sequences)
-            
+
             next_token_logits = outputs[:, -1, :] / temperature
 
             # Apply repetition penalty
@@ -118,7 +135,7 @@ def generate_text(
             # Apply top-k filtering
             if top_k > 0:
                 indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
-                next_token_logits[indices_to_remove] = float('-inf')
+                next_token_logits[indices_to_remove] = float("-inf")
 
             # Apply top-p (nucleus) filtering
             if top_p < 1.0:
@@ -128,7 +145,7 @@ def generate_text(
                 sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
                 sorted_indices_to_remove[..., 0] = 0
                 indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                next_token_logits[indices_to_remove] = float('-inf')
+                next_token_logits[indices_to_remove] = float("-inf")
 
             if do_sample:
                 probs = F.softmax(next_token_logits, dim=-1)
@@ -156,10 +173,14 @@ def generate_text(
     return generated_sequences
 
 
-def main():
-    config = load_config("src/cfg/yaml/v4/generate_config.yaml")
+def main(rank, world_size, config):
     # os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, config.basic.device_ids))
     set_seed(config.basic.seed)
+    dist_setup(
+        rank,
+        world_size,
+    )
+    torch.cuda.set_device(rank)
 
     model_config = from_dict(
         data_class=xLSTMLMModelConfig,
@@ -172,14 +193,13 @@ def main():
     model.load_state_dict(torch.load(config.basic.model_weight_path))
     model = model.to(dtype=torch_dtype_map[config.training.weight_precision])
     model = model.to(config.basic.device)
+    model = FSDP(model)
 
     tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.name)
-    tokenizer.add_special_tokens(
-        {"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"}
-    )
+    tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
     eos_token_id = tokenizer.eos_token_id
 
-    text = "[BOS]私は"
+    text = "[BOS]静岡市には"
     tokenized_text = tokenizer(text, return_tensors="pt")
 
     generated_text = generate_text(
@@ -195,10 +215,18 @@ def main():
         num_return_sequences=1,
         use_beam_search=True,
         num_beams=5,
-        length_penalty=1.5
+        length_penalty=1.5,
     )
-    print(tokenizer.decode(generated_text[0]))
+    if rank == 0:
+        print(tokenizer.decode(generated_text[0]))
+
+    dist_cleanup()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config_path", type=str)
+    config = load_config(parser.parse_args().config_path)
+    WORLD_SIZE = torch.cuda.device_count()
+
+    mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)
