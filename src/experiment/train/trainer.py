@@ -24,8 +24,9 @@ class TrainerArgs:
 
 class Trainer:
     def __init__(self, args: TrainerArgs) -> None:
+        self.logger = get_logger(f"Trainer: {self.rank}")
         if args.rank == 0:
-            args.logger.info("Trainer initializing...")
+            self.logger.info("Trainer initializing...")
         self.model = args.model
         self.train_loader = args.train_loader
         self.lr_scheduler = args.lr_scheduler
@@ -33,7 +34,6 @@ class Trainer:
         self.criterion = args.criterion
         self.config = args.config
         self.rank = args.rank
-        self.logger = get_logger(f"Trainer: {self.rank}")
         self.step = 0
         self.epoch = 1
         self.running_loss = torch.tensor(0.0).to(self.rank)
