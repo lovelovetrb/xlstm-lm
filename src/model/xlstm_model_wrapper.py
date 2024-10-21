@@ -1,5 +1,6 @@
 import functools
 
+import torch
 from dacite import Config as DaciteConfig
 from dacite import from_dict
 from omegaconf import OmegaConf
@@ -13,11 +14,13 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from xlstm import xLSTMLMModel, xLSTMLMModelConfig
 
+from src.cfg.config_type import ExperimentConfig
 from src.utils import torch_dtype_map
 
 
-class xlstm_model:
-    def __init__(self, config, rank) -> None:
+# ruff: noqa: N801
+class xLSTMModelWrapper:
+    def __init__(self, config: ExperimentConfig, rank: int) -> None:
         self.config = config
         self.rank = rank
         self.model_cofing = from_dict(
@@ -27,23 +30,29 @@ class xlstm_model:
         )
         self.model = xLSTMLMModel(self.model_cofing)
 
-    def get_model(self):
+    def get_model(self) -> torch.nn.Module:
         self.model = self.model.to(dtype=torch_dtype_map[self.config.training.weight_precision])
         self.model = self.model.to(self.rank)
 
         if self.config.basic.mode == "train":
-            self.model.reset_parameters()
-            self.model.train()
+            self._train()
         elif self.config.basic.mode == "eval":
-            self.model.eval()
+            self._eval()
         else:
-            raise ValueError("Invalid mode")
+            raise ValueError(self.config.basic.mode)
 
         if self.config.training.use_fsdp:
             self.model = self._wrap_fsdp(self.model)
         return self.model
 
-    def _wrap_fsdp(self, model):
+    def _train(self) -> None:
+        self.model.reset_parameters()
+        self.model.train()
+
+    def _eval(self) -> None:
+        self.model.eval()
+
+    def _wrap_fsdp(self, model: torch.nn.Module) -> torch.nn.Module:
         return FSDP(
             model,
             sharding_strategy=ShardingStrategy.SHARD_GRAD_OP,
@@ -57,21 +66,23 @@ class xlstm_model:
             use_orig_params=True,
         )
 
-    def _get_auto_wrap_policy(self):
+    def _get_auto_wrap_policy(self) -> functools.partial:
         return functools.partial(
             size_based_auto_wrap_policy,
             # TODO: modelのパラメータ数に応じて調整
+            # https://github.com/lovelovetrb/xlstm-lm/issues/26
             min_num_params=int(5e7),
         )
 
-    def _get_mix_precision_policy(self):
+    def _get_mix_precision_policy(self) -> MixedPrecision:
         return MixedPrecision(
             param_dtype=torch_dtype_map[self.config.training.weight_precision],  # weight_precisionがfloat32
             reduce_dtype=torch_dtype_map[self.config.training.amp_precision],  # amp_precisionがbfloat16
             buffer_dtype=torch_dtype_map[self.config.training.amp_precision],  # 通常はreduce_dtypeと同じ
         )
 
-    def _param_init_fn(self, module):
+    def _param_init_fn(self, module: torch.nn.Module) -> tuple:
+        # ruff: noqa: SLF001
         optim_groups = module._create_weight_decay_optim_groups()
         return (
             {

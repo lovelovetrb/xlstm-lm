@@ -1,11 +1,12 @@
 import datetime
 import logging
-import os
+import typing
 
 import torch
 import torch.distributed as dist
 
 import wandb
+from src.cfg.config_type import ExperimentConfig
 
 torch_dtype_map: dict[str, torch.dtype] = {
     "float32": torch.float32,
@@ -14,11 +15,12 @@ torch_dtype_map: dict[str, torch.dtype] = {
 }
 
 
-def is_serializable(value):
+# ruff: noqa: ANN401
+def is_serializable(value: typing.Any) -> bool:
     return isinstance(value, (int, float, str, bool))
 
 
-def wandb_init(config):
+def wandb_init(config: ExperimentConfig) -> None:
     config_serializable = {key: value for key, value in config.items() if is_serializable(value)}
     wandb.init(
         project=config.basic.project_name,
@@ -27,7 +29,7 @@ def wandb_init(config):
     )
 
 
-def dist_setup(rank, world_size, logger):
+def dist_setup(rank: int, world_size: int, logger: logging.Logger) -> None:
     try:
         dist.init_process_group(
             backend="nccl",
@@ -38,11 +40,11 @@ def dist_setup(rank, world_size, logger):
         torch.cuda.set_device(rank)
         logger.info(f"Rank {dist.get_rank()}: Process group initialized")
     except Exception as e:
-        logger.error(f"Failed to initialize process group: {e}")
+        logger.exception(f"Failed to initialize process group: {e}")
         raise
 
 
-def dist_cleanup():
+def dist_cleanup() -> None:
     dist.destroy_process_group()
 
 

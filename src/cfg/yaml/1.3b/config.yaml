@@ -56,6 +56,7 @@ training:
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001
   weight_decay: 0.1
+  # TODO: 正しいステップ数を設定する
   num_steps: 46585
   amp_precision: bfloat16
   weight_precision: float32
