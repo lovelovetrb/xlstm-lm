@@ -3,11 +3,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
-import wandb
 from torch.distributed.fsdp import FullStateDictConfig, StateDictType
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from tqdm import tqdm
 
+import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
