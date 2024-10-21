@@ -28,13 +28,19 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "mypy>=1.12.1",
+    "ruff>=0.7.0",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]
+
+[tool.mypy]
+ignore_missing_imports = true
 
 ## https://gihyo.jp/article/2023/03/monthly-python-2303
 ## 略称一覧: https://pypi.org/project/ruff/0.0.242/#supported-rule
@@ -50,10 +56,19 @@ lint.ignore = [
 # https://docs.astral.sh/ruff/settings/#lint_per-file-ignores
 [tool.ruff.lint.per-file-ignores]
 "*.py" = [
+    "N812",
+    "N817",
+    "S101",
+    "G004",
+    "TD002",
+    "FA100",
+    "FA102",
     "ANN101",
     "COM812",
     "ISC001",
     "ERA001",
+    "FIX002",
     "INP001",
     "TRY002",
+    "TRY401",
 ]
