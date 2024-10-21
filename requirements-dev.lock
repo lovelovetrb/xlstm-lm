@@ -39,6 +39,7 @@ filelock==3.15.1
     # via huggingface-hub
     # via torch
     # via transformers
+    # via triton
 frozenlist==1.4.1
     # via aiohttp
     # via aiosignal
@@ -178,6 +179,8 @@ tqdm==4.66.4
     # via xlstm-lm
 transformers==4.41.2
     # via xlstm-lm
+triton==2.3.1
+    # via torch
 typing-extensions==4.12.2
     # via huggingface-hub
     # via mypy

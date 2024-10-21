@@ -4,8 +4,8 @@ import typing
 
 import torch
 import torch.distributed as dist
-
 import wandb
+
 from src.cfg.config_type import ExperimentConfig
 
 torch_dtype_map: dict[str, torch.dtype] = {

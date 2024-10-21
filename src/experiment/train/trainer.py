@@ -3,11 +3,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
+import wandb
 from torch.distributed.fsdp import FullStateDictConfig, StateDictType
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from tqdm import tqdm
 
-import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
@@ -24,8 +24,9 @@ class TrainerArgs:
 
 class Trainer:
     def __init__(self, args: TrainerArgs) -> None:
+        self.logger = get_logger(f"Trainer: {args.rank}")
         if args.rank == 0:
-            args.logger.info("Trainer initializing...")
+            self.logger.info("Trainer initializing...")
         self.model = args.model
         self.train_loader = args.train_loader
         self.lr_scheduler = args.lr_scheduler
@@ -33,7 +34,6 @@ class Trainer:
         self.criterion = args.criterion
         self.config = args.config
         self.rank = args.rank
-        self.logger = get_logger(f"Trainer: {self.rank}")
         self.step = 0
         self.epoch = 1
         self.running_loss = torch.tensor(0.0).to(self.rank)
@@ -68,7 +68,7 @@ class Trainer:
     def _epoch_logging(self) -> None:
         wandb.alert(
             title="Epoch Done",
-            text=f"Epoch {self.epoch-1} is done! Loss: {self.running_loss}",
+            text=f"Epoch {self.epoch - 1} is done! Loss: {self.running_loss}",
         )
 
     def _get_progress_bar(self) -> tqdm:
