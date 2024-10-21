@@ -70,6 +70,9 @@ multidict==6.0.5
     # via yarl
 multiprocess==0.70.16
     # via datasets
+mypy==1.12.1
+mypy-extensions==1.0.0
+    # via mypy
 networkx==3.3
     # via torch
 ninja==1.11.1.1
@@ -147,6 +150,7 @@ requests==2.32.3
     # via huggingface-hub
     # via transformers
     # via wandb
+ruff==0.7.0
 safetensors==0.4.3
     # via transformers
 sentry-sdk==2.10.0
@@ -176,6 +180,7 @@ transformers==4.41.2
     # via xlstm-lm
 typing-extensions==4.12.2
     # via huggingface-hub
+    # via mypy
     # via torch
 tzdata==2024.1
     # via pandas
