@@ -6,10 +6,11 @@ from src.cfg.config_type import ExperimentConfig
 from src.dataset.ja_cc_dataset import JaCCDataset
 from src.dataset.ja_wiki_dataset import JaWikiDataset
 from src.dataset.slim_pajama_dataset import SlimPajamaDataset
+from src.utils import get_logger
 
 
 class DistributedIterableWrapper(IterableDataset):
-    def __init__(self, dataset, num_replicas, rank):
+    def __init__(self, dataset: IterableDataset, num_replicas: int, rank: int) -> None:
         self.dataset = dataset
         self.num_replicas = num_replicas
         self.rank = rank
@@ -37,17 +38,18 @@ class DistributedIterableWrapper(IterableDataset):
 
 
 class NlpDataset(IterableDataset):
-    def __init__(self, data, cfg):
+    def __init__(self, data: list[dict], cfg: ExperimentConfig) -> None:
         self.data = data
         self.cfg = cfg
         self._load_tokenizer()
 
+    # ruff: noqa: ANN204
     def __iter__(self):
         for item in self.data:
             tokenized_data = self._tokenize_dataset(item["text"])
             yield tokenized_data
 
-    def _load_tokenizer(self):
+    def _load_tokenizer(self) -> None:
         self._tokenizer = AutoTokenizer.from_pretrained(self.cfg.tokenizer.name)
         self.max_seq_length = self.cfg.dataset.max_seq_length
         self.min_seq_length = self.cfg.dataset.min_seq_length
@@ -61,14 +63,12 @@ class NlpDataset(IterableDataset):
             self.pad_token_id == self.cfg.dataset.pad_token_id
         ), f"PAD token id expect {self.cfg.dataset.pad_token_id}, got {self.pad_token_id}"
 
-    def _tokenize_dataset(self, text):
+    def _tokenize_dataset(self, text: str) -> dict:
         tokens = self._get_tokens(text.replace("\n", ""))
-
         input_ids = tokens["input_ids"][0]
-        data_dic = self._prepare_lm_features_and_labels(input_ids)
-        return data_dic
+        return self._prepare_lm_features_and_labels(input_ids)
 
-    def _get_tokens(self, text):
+    def _get_tokens(self, text: str) -> dict:
         return self._tokenizer(
             text,
             return_tensors="pt",
@@ -77,8 +77,8 @@ class NlpDataset(IterableDataset):
             max_length=self.max_seq_length,
         )
 
-    def _prepare_lm_features_and_labels(self, input_ids):
-        def pad_sequence(seq, pad_length, pad_value) -> torch.Tensor:
+    def _prepare_lm_features_and_labels(self, input_ids: torch.Tensor) -> dict:
+        def pad_sequence(seq: torch.Tensor, pad_length: int, pad_value: int) -> torch.Tensor:
             return torch.cat([seq, torch.full((pad_length,), pad_value)])
 
         if len(input_ids) == self.max_seq_length:
@@ -123,39 +123,39 @@ class NlpDataset(IterableDataset):
 
 
 class NlpDatasetGenerator:
-    # TODO: cfgの型を定義
-    def __init__(self, cfg: ExperimentConfig):
+    def __init__(self, cfg: ExperimentConfig) -> None:
         self.cfg = cfg
         self.subset = cfg.dataset.subset
-        self.datasets = {}
+        self.datasets: dict[str, NlpDataset] = {}
+        self.logger = get_logger("NlpDatasetGenerator")
         self._load_data(cfg.dataset.name)
 
-    def _load_data(self, dataset_name: str):
+    def _load_data(self, dataset_name: str) -> None:
         for subset in self.subset:
             if dataset_name == "slim_pajama":
-                # TODO: loggingに変更
-                print(f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)")
+                self.logger.info(f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)")
                 slim_pajama_dataset = SlimPajamaDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(slim_pajama_dataset.data, self.cfg)
             elif dataset_name == "ja_wiki":
-                print(f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)")
+                self.logger.info(f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)")
                 ja_wiki_dataset = JaWikiDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_wiki_dataset.data, self.cfg)
             elif dataset_name == "ja_cc_wiki":
-                print(f"Loading {subset} dataset from ja_cc_wiki...(this may take a while)")
+                self.logger.info(f"Loading {subset} dataset from ja_cc_wiki...(this may take a while)")
                 ja_cc_wiki_dataset = JaCCDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg)
             else:
-                raise ValueError(f"Dataset {dataset_name} not supported")
+                self.logger.error(f"Dataset {dataset_name} not supported")
+                raise ValueError(dataset_name)
 
     @property
-    def train(self):
+    def train(self) -> NlpDataset:
         return self.datasets["train"]
 
     @property
-    def valid(self):
+    def valid(self) -> NlpDataset:
         return self.datasets["valid"]
 
     @property
-    def test(self):
+    def test(self) -> NlpDataset:
         return self.datasets["test"]

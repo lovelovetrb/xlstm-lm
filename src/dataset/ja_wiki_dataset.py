@@ -1,16 +1,17 @@
 from datasets import load_dataset
 
+from src.cfg.config_type import ExperimentConfig
+
 
 class JaWikiDataset:
-    def __init__(self, cfg, subset):
+    def __init__(self, cfg: ExperimentConfig, subset: str) -> None:
         self.cfg = cfg
         self.data = self._load_ja_wiki(subset=subset)
 
-    def _load_ja_wiki(self, subset) -> list[dict]:
+    def _load_ja_wiki(self, subset: str) -> list[dict]:
         # https://huggingface.co/datasets/fujiki/wiki40b_ja
-        row_text_ds = load_dataset(
+        return load_dataset(
             "fujiki/wiki40b_ja",
             split=subset,
             streaming=True,
         )
-        return row_text_ds
