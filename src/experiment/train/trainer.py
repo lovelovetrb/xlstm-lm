@@ -1,4 +1,5 @@
 import math
+from dataclasses import dataclass
 from pathlib import Path
 
 import torch
@@ -12,6 +13,7 @@ from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
 
+@dataclass
 class TrainerArgs:
     model: torch.nn.Module
     train_loader: torch.utils.data.DataLoader
