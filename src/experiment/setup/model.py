@@ -1,9 +1,8 @@
 import torch
 
 from src.cfg.config_type import ExperimentConfig
-from src.model.xlstm_model_wrapper import xlstm_model
+from src.model.xlstm_model_wrapper import xLSTMModelWrapper
 
 
 def setup_model(config: ExperimentConfig, rank: int) -> torch.nn.Module:
-    model = xlstm_model(config, rank).get_model()
-    return model
+    return xLSTMModelWrapper(config, rank).get_model()
