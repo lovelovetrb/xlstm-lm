@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 
 import torch
@@ -20,9 +19,11 @@ from src.utils import dist_cleanup, dist_setup, get_logger, wandb_init
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-def setup_training(rank: int, world_size: int, config: ExperimentConfig, logger: logging.Logger) -> TrainerArgs:
+def setup_training(rank: int, world_size: int, config: ExperimentConfig) -> TrainerArgs:
+    logger = get_logger(f"train-{rank}")
     logger.info(f"Rank {rank}: Setting up training...")
-    wandb_init(config)
+
+    wandb_init(rank, config)
     set_seed(config.basic.seed)
     dist_setup(rank, world_size, logger)
 
@@ -48,13 +49,11 @@ def cleanup() -> None:
     wandb.finish()
 
 
-def main(rank: int, world_size: int, config: ExperimentConfig, logger: logging.Logger) -> None:
+def main(rank: int, world_size: int, config: ExperimentConfig) -> None:
     try:
-        trainer_args = setup_training(rank, world_size, config, logger)
+        trainer_args = setup_training(rank, world_size, config)
         trainer = Trainer(trainer_args)
         trainer.train()
-    except Exception as e:
-        logger.exception(f"Error in main: {e}")
     finally:
         cleanup()
 
@@ -69,4 +68,4 @@ if __name__ == "__main__":
     config = load_config(args.config)
     WORLD_SIZE = torch.cuda.device_count()
 
-    mp.spawn(main, args=(WORLD_SIZE, config, logger), nprocs=WORLD_SIZE, join=True)
+    mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)

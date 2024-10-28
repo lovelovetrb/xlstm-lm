@@ -19,7 +19,11 @@ RUN pip install xlstm \
     transformers \
     datasets \ 
     wandb  \
-    zstandard
+    zstandard \
+    loguru
+
+
+ENV PYTHONPATH=/app:/app/src:$PYTHONPATH
 
 # デフォルトのシェルをbashに設定し、環境をアクティブ化
 SHELL ["/bin/bash", "--login", "-c"]

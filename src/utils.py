@@ -1,10 +1,11 @@
 import datetime
-import logging
+import sys
 import typing
 
 import torch
 import torch.distributed as dist
 import wandb
+from loguru import logger
 
 from src.cfg.config_type import ExperimentConfig
 
@@ -20,17 +21,22 @@ def is_serializable(value: typing.Any) -> bool:
     return isinstance(value, (int, float, str, bool))
 
 
-def wandb_init(config: ExperimentConfig) -> None:
-    config_serializable = {key: value for key, value in config.items() if is_serializable(value)}
+def wandb_init(rank: int, config: ExperimentConfig) -> None:
+    # config_serializable = {
+    #     key: value for key, value in config.items() if is_serializable(value)
+    # }
     wandb.init(
         project=config.basic.project_name,
-        name=f"{config.dataset.name}-{config.basic.project_tag}-{config.training.lr}",
-        config=config_serializable,
+        group=f"{config.dataset.name}-{config.basic.project_tag}-{config.training.lr}",
+        name=f"RUN: {rank}",
+        config=config,
     )
 
 
-def dist_setup(rank: int, world_size: int, logger: logging.Logger) -> None:
+def dist_setup(rank: int, world_size: int, logger: logger) -> None:
     try:
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         dist.init_process_group(
             backend="nccl",
             rank=rank,
@@ -48,7 +54,6 @@ def dist_cleanup() -> None:
     dist.destroy_process_group()
 
 
-def get_logger(name: str) -> logging.Logger:
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+def get_logger(name: str) -> logger:
+    logger.add(sys.stderr, format="{time} {level} {message}", filter=name, level="INFO")
     return logger

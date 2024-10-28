@@ -8,18 +8,19 @@
 train()
 {
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    export NCCL_IB_DISABLE=1
+    export NCCL_IB_DISABLE=0
     export NCCL_P2P_DISABLE=1
-    MNCCL_DEBUG=INFO ASTER_ADDR=localhost MASTER_PORT=19999 CUDA_VISIBLE_DEVICES=5 CUDA_LAUNCH_BLOCKING=1 rye run python src/experiment/train/train_fsdp.py --config $CONFIG_PATH
+    CONFIG_PATH=${1:-src/cfg/yaml/template/train_config.yaml}
+    NCCL_DEBUG=INFO MASTER_ADDR=localhost MASTER_PORT=19999 CUDA_VISIBLE_DEVICES=0,1,3,4 CUDA_LAUNCH_BLOCKING=1 rye run python src/experiment/train/train.py --config $CONFIG_PATH
 }
 
 docker_train() 
 {
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    export NCCL_IB_DISABLE=1
+    export NCCL_IB_DISABLE=0
     export NCCL_P2P_DISABLE=1
-    CONFIG_PATH=${2:-src/cfg/yaml/template/train_config.yaml}
-    NCCL_DEBUG=INFO MASTER_ADDR=localhost MASTER_PORT=19299 CUDA_LAUNCH_BLOCKING=1 python src/experiment/train/train_fsdp.py --config $CONFIG_PATH
+    CONFIG_PATH=${1:-src/cfg/yaml/template/train_config.yaml}
+    NCCL_DEBUG=INFO MASTER_ADDR=localhost MASTER_PORT=19299 CUDA_LAUNCH_BLOCKING=1 python src/experiment/train/train.py --config $CONFIG_PATH
 }
 
 help()
