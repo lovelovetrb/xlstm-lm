@@ -1,17 +1,20 @@
 # xLSTM-LM : xLSTMを用いた言語モデルの学習
+<p align='center'>
+    <a href="https://hub.docker.com/r/continuumio/anaconda3">
+        <img src="https://img.shields.io/badge/-Docker-EEE.svg?logo=docker&style=flat">
+    </a>
+        <img src="https://img.shields.io/badge/-Python-EEE.svg?logo=python&style=popout-square">
+    <a href="https://pytorch.org/">
+        <img src="https://img.shields.io/badge/-PyTorch-EEE.svg?logo=pytorch&style=popout-square">
+    </a>
+    <a href="https://docs.astral.sh/ruff/">
+        <img src="https://img.shields.io/badge/-Ruff-EEE.svg?logo=ruff&style=popout-square">
+    </a>
+    <a href="https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml">
+        <img src="https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml/badge.svg">
+    </a>
+</p>
 
-<a href="https://hub.docker.com/r/continuumio/anaconda3">
-    <img src="https://img.shields.io/badge/-Docker-EEE.svg?logo=docker&style=flat">
-</a>
-    <img src="https://img.shields.io/badge/-Python-EEE.svg?logo=python&style=popout-square">
-<a href="https://pytorch.org/">
-    <img src="https://img.shields.io/badge/-PyTorch-EEE.svg?logo=pytorch&style=popout-square">
-</a>
-<a href="https://docs.astral.sh/ruff/">
-    <img src="https://img.shields.io/badge/-Ruff-EEE.svg?logo=ruff&style=popout-square">
-</a>
-
-[![Lint Check](https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml/badge.svg)](https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml)
 ## 概要
 このリポジトリは、xLSTMを用いた言語モデルを学習するコードを実装したものです。  
 論文「[xLSTM: Extended Long Short-Term Memory](https://arxiv.org/abs/1911.12488)」に基づいて実装しています。
