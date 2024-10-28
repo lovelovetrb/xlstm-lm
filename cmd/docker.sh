@@ -17,7 +17,8 @@ build()
 shell() 
 {
     GPU_ID=${1:-all}
-    docker run --rm --gpus "device=$GPU_ID" -it -v $(pwd):/app --env-file ./.env $IMAGE_NAME:latest
+    echo "USE GPU_ID: $GPU_ID"
+    docker run --shm-size=10g --gpus \""device=$GPU_ID"\" -it -v $(pwd):/app --env-file ./.env $IMAGE_NAME:latest
 }
 
 help(){
@@ -29,7 +30,7 @@ help(){
 if [[ $1 == "build" ]]; then
     build
 elif [[ $1 == "shell" ]]; then
-    shell 
+    shell $2
 elif [[ $1 == "help" ]]; then
     help
 else
