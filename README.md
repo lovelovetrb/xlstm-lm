@@ -1,4 +1,4 @@
-# xLSTM-LM : xLSTMを用いた言語モデルの学習
+# ⏳ xLSTM-LM : xLSTMを用いた言語モデルの学習
 <p align='center'>
     <a href="https://hub.docker.com/r/continuumio/anaconda3">
         <img src="https://img.shields.io/badge/-Docker-EEE.svg?logo=docker&style=flat">
@@ -15,11 +15,11 @@
     </a>
 </p>
 
-## 概要
+## 💫 概要
 このリポジトリは、xLSTMを用いた言語モデルを学習するコードを実装したものです。  
 論文「[xLSTM: Extended Long Short-Term Memory](https://arxiv.org/abs/1911.12488)」に基づいて実装しています。
 
-## ファイル構成
+## 📎 ファイル構成
 <pre>
 .
 ├── Makefile : Lint・Formatを実行するためのMakefile
@@ -71,9 +71,9 @@
 └── tests
 </pre>
 
-## 使用ライブラリ
+## 📚 使用ライブラリ
 
-#### main-dependencies
+#### 🤖 main-dependencies
 - [xlstm](https://github.com/NX-AI/xlstm) : NX-AI社が公開しているxLSTMの公式実装
 - transformers : tokenizerの読み込みに使用
 - datasets : データセットの読み込みに使用
@@ -81,12 +81,12 @@
 - pyTorch : モデルの学習に使用
 - wandb : ログの保存に使用
 
-#### dev-dependencies
+#### 🧑‍💻 dev-dependencies
 - ruff : Linter・Formatter
 - mypy : 型チェック
 
-## 学習方法
-### Dockerを用いたconda環境での学習
+## ✍️ 学習方法
+### 🗳️ Dockerを用いたconda環境での学習
 1. .envの作成
 > wandbのAPIキーを.envに記述してください。
 ```bash
@@ -105,7 +105,7 @@ $ bash cmd/docker.sh shell [GPU_ID](ex. 0,1,2,3)
 $ bash cmd/train.sh docker [CONFIG_PATH](ex. src/cfg/yaml/1.3b/config.yaml)
 ```
 
-### ローカル環境での学習
+### 🏠 ローカル環境での学習
 1. 依存関係の解決
 - Ryeを用いる場合
 ```bash
