@@ -31,7 +31,7 @@ build-backend = "hatchling.build"
 managed = true
 dev-dependencies = [
     "mypy>=1.12.1",
-    "ruff>=0.7.0",
+    "ruff>=0.7.1",
 ]
 
 [tool.hatch.metadata]
