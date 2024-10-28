@@ -140,8 +140,8 @@ class NlpDatasetGenerator:
                 self.logger.info(f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)")
                 ja_wiki_dataset = JaWikiDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_wiki_dataset.data, self.cfg)
-            elif dataset_name == "ja_cc_wiki":
-                self.logger.info(f"Loading {subset} dataset from ja_cc_wiki...(this may take a while)")
+            elif dataset_name == "ja_cc":
+                self.logger.info(f"Loading {subset} dataset from ja_cc...(this may take a while)")
                 ja_cc_wiki_dataset = JaCCDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg)
             else:
