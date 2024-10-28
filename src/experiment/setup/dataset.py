@@ -11,6 +11,7 @@ from src.dataset.nlp_dataset import (
 
 def setup_dataset(config: ExperimentConfig, rank: int, world_size: int, subset: str) -> DataLoader:
     # TODO: DatasetGeneratorに対してtokenizerを渡すような実装に変更
+    # https://github.com/lovelovetrb/xlstm-lm/issues/31
     dataset_generator = NlpDatasetGenerator(config)
     dataset = get_dataset_subset(dataset_generator, subset)
     if config.training.use_fsdp:
