@@ -34,7 +34,7 @@ def setup_training(rank: int, world_size: int, config: ExperimentConfig) -> Trai
     model = setup_model(config, rank)
     optimizer = setup_optimizer(model, config)
     lr_scheduler = setup_lr_scheduler(optimizer, config)
-    criterion = setup_criterion(config, tokenizer.pad_token_id)
+    criterion = setup_criterion(tokenizer.pad_token_id)
 
     return TrainerArgs(
         model=model,

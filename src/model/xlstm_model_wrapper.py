@@ -1,9 +1,6 @@
 import functools
 
 import torch
-from dacite import Config as DaciteConfig
-from dacite import from_dict
-from omegaconf import OmegaConf
 from torch.distributed.fsdp import (
     BackwardPrefetch,
     CPUOffload,
@@ -12,7 +9,7 @@ from torch.distributed.fsdp import (
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
-from xlstm import xLSTMLMModel, xLSTMLMModelConfig
+from xlstm import xLSTMLMModel
 
 from src.cfg.config_type import ExperimentConfig
 from src.utils import torch_dtype_map
