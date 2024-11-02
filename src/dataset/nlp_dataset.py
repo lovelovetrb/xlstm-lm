@@ -38,10 +38,11 @@ class DistributedIterableWrapper(IterableDataset):
 
 
 class NlpDataset(IterableDataset):
-    def __init__(self, data: list[dict], cfg: ExperimentConfig) -> None:
+    def __init__(self, data: list[dict], cfg: ExperimentConfig, tokenizer: AutoTokenizer) -> None:
         self.data = data
         self.cfg = cfg
-        self._load_tokenizer()
+        self._tokenizer = tokenizer
+        self._load_tokenizer_info()
 
     # ruff: noqa: ANN204
     def __iter__(self):
@@ -49,19 +50,13 @@ class NlpDataset(IterableDataset):
             tokenized_data = self._tokenize_dataset(item["text"])
             yield tokenized_data
 
-    def _load_tokenizer(self) -> None:
-        self._tokenizer = AutoTokenizer.from_pretrained(self.cfg.tokenizer.name)
+    def _load_tokenizer_info(self) -> None:
         self.max_seq_length = self.cfg.dataset.max_seq_length
         self.min_seq_length = self.cfg.dataset.min_seq_length
 
-        self._tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
         self.bos_token_id = self._tokenizer.convert_tokens_to_ids("[BOS]")
         self.eos_token_id = self._tokenizer.convert_tokens_to_ids("[EOS]")
         self.pad_token_id = self._tokenizer.convert_tokens_to_ids("[PAD]")
-
-        assert (
-            self.pad_token_id == self.cfg.dataset.pad_token_id
-        ), f"PAD token id expect {self.cfg.dataset.pad_token_id}, got {self.pad_token_id}"
 
     def _tokenize_dataset(self, text: str) -> dict:
         tokens = self._get_tokens(text.replace("\n", ""))
@@ -123,11 +118,12 @@ class NlpDataset(IterableDataset):
 
 
 class NlpDatasetGenerator:
-    def __init__(self, cfg: ExperimentConfig) -> None:
+    def __init__(self, cfg: ExperimentConfig, tokenizer: AutoTokenizer) -> None:
         self.cfg = cfg
         self.subset = cfg.dataset.subset
         self.datasets: dict[str, NlpDataset] = {}
         self.logger = get_logger("NlpDatasetGenerator")
+        self.tokenizer = tokenizer
         self._load_data(cfg.dataset.name)
 
     def _load_data(self, dataset_name: str) -> None:
@@ -135,15 +131,15 @@ class NlpDatasetGenerator:
             if dataset_name == "slim_pajama":
                 self.logger.info(f"Loading {subset} dataset from SlimPajama-627B...(this may take a while)")
                 slim_pajama_dataset = SlimPajamaDataset(self.cfg, subset=subset)
-                self.datasets[subset] = NlpDataset(slim_pajama_dataset.data, self.cfg)
+                self.datasets[subset] = NlpDataset(slim_pajama_dataset.data, self.cfg, self.tokenizer)
             elif dataset_name == "ja_wiki":
                 self.logger.info(f"Loading {subset} dataset from ja_wiki_40b ...(this may take a while)")
                 ja_wiki_dataset = JaWikiDataset(self.cfg, subset=subset)
-                self.datasets[subset] = NlpDataset(ja_wiki_dataset.data, self.cfg)
+                self.datasets[subset] = NlpDataset(ja_wiki_dataset.data, self.cfg, self.tokenizer)
             elif dataset_name == "ja_cc":
                 self.logger.info(f"Loading {subset} dataset from ja_cc...(this may take a while)")
                 ja_cc_wiki_dataset = JaCCDataset(self.cfg, subset=subset)
-                self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg)
+                self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg, self.tokenizer)
             else:
                 self.logger.error(f"Dataset {dataset_name} not supported")
                 raise ValueError(dataset_name)
