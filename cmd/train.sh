@@ -16,6 +16,7 @@ train()
 
 docker_train() 
 {
+    git config --global --add safe.directory /app
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     export NCCL_IB_DISABLE=0
     export NCCL_P2P_DISABLE=1
