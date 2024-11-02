@@ -28,8 +28,7 @@ class xLSTMModelWrapper:
 
     def get_model(self) -> torch.nn.Module:
         self.load_checkpoint()
-        self.model = self.model.to(
-            dtype=torch_dtype_map[self.config.training.weight_precision])
+        self.model = self.model.to(dtype=torch_dtype_map[self.config.training.weight_precision])
         self.model = self.model.to(self.rank)
 
         if self.config.basic.mode == "train":
