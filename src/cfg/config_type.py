@@ -22,7 +22,6 @@ class DatasetConfig:
     train_ratio: float
     valid_ratio: float
     test_ratio: float
-    pad_token_id: int
     subset: List[str] = field(default_factory=list)
 
 
