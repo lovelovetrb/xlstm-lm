@@ -3,9 +3,9 @@ import os
 
 import torch
 import torch.multiprocessing as mp
+import wandb
 from transformers import set_seed
 
-import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.cfg.load_yaml_cfg import load_config
 from src.experiment.setup.criterion import setup_criterion

@@ -1,7 +1,7 @@
 lint:
-	ruff check src
-	mypy src --config-file pyproject.toml --ignore-missing-imports --no-namespace-packages
+	rye run ruff check src
+	rye run mypy src --config-file pyproject.toml --ignore-missing-imports --no-namespace-packages
 	
 format:
-	ruff format src
-	ruff check --fix --select I src
+	rye run ruff format src
+	rye run ruff check --fix --select I src
