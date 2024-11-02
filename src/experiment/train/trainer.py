@@ -100,8 +100,6 @@ class Trainer:
     def _clear_cache(self) -> None:
         if self.config.basic.device == "cuda":
             torch.cuda.empty_cache()
-            if hasattr(torch.cuda, "memory_summary"):
-                self.logger.info(torch.cuda.memory_summary(device=self.rank))
 
     def _compute_loss(self, outputs: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
         return self.criterion(
