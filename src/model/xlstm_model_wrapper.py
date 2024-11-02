@@ -20,18 +20,16 @@ from src.utils import torch_dtype_map
 
 # ruff: noqa: N801
 class xLSTMModelWrapper:
-    def __init__(self, config: ExperimentConfig, rank: int) -> None:
+    def __init__(self, config: ExperimentConfig, rank: int, model_weight_path: str | None) -> None:
         self.config = config
         self.rank = rank
-        self.model_cofing = from_dict(
-            data_class=xLSTMLMModelConfig,
-            data=OmegaConf.to_container(config.model, resolve=True),
-            config=DaciteConfig(strict=True),
-        )
-        self.model = xLSTMLMModel(self.model_cofing)
+        self.model_weight_path = model_weight_path
+        self.model = xLSTMLMModel(self.config.model)
 
     def get_model(self) -> torch.nn.Module:
-        self.model = self.model.to(dtype=torch_dtype_map[self.config.training.weight_precision])
+        self.load_checkpoint()
+        self.model = self.model.to(
+            dtype=torch_dtype_map[self.config.training.weight_precision])
         self.model = self.model.to(self.rank)
 
         if self.config.basic.mode == "train":
@@ -44,6 +42,10 @@ class xLSTMModelWrapper:
         if self.config.training.use_fsdp:
             self.model = self._wrap_fsdp(self.model)
         return self.model
+
+    def load_checkpoint(self) -> None:
+        if self.model_weight_path is not None:
+            self.model.load_state_dict(torch.load(self.model_weight_path))
 
     def _train(self) -> None:
         self.model.reset_parameters()
@@ -76,9 +78,12 @@ class xLSTMModelWrapper:
 
     def _get_mix_precision_policy(self) -> MixedPrecision:
         return MixedPrecision(
-            param_dtype=torch_dtype_map[self.config.training.weight_precision],  # weight_precisionがfloat32
-            reduce_dtype=torch_dtype_map[self.config.training.amp_precision],  # amp_precisionがbfloat16
-            buffer_dtype=torch_dtype_map[self.config.training.amp_precision],  # 通常はreduce_dtypeと同じ
+            # weight_precisionがfloat32
+            param_dtype=torch_dtype_map[self.config.training.weight_precision],
+            # amp_precisionがbfloat16
+            reduce_dtype=torch_dtype_map[self.config.training.amp_precision],
+            # 通常はreduce_dtypeと同じ
+            buffer_dtype=torch_dtype_map[self.config.training.amp_precision],
         )
 
     def _param_init_fn(self, module: torch.nn.Module) -> tuple:
