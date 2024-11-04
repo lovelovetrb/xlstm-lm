@@ -11,7 +11,9 @@ class JaWikiDataset:
     def _load_ja_wiki(self, subset: str) -> list[dict]:
         # https://huggingface.co/datasets/fujiki/wiki40b_ja
         return load_dataset(
-            "fujiki/wiki40b_ja",
+            "wikimedia/wikipedia",
+            "20231101.ja",
             split=subset,
             streaming=True,
+            cache_dir="/backup/tmp/huggingface_cache",
         )
