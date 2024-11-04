@@ -2,13 +2,13 @@
 basic:
   seed: 42
   device: 'cuda'
-  mode: 'eval' # 'train' or 'eval'
-  project_name: 'xlstm_fsdp'
-  project_tag: 'xlstm_1.3b'
+  mode: 'train' # 'train' or 'eval'
+  project_name: 'xlstm_1.3b_kanolab'
+  project_tag: 'xlstm_1.3b_ja_localized'
   model_weight_path: "${training.model_save_dir}/model_10000.pth"
 
 dataset:
-  name: 'slim_pajama'
+  name: 'ja_wiki'
   min_seq_length: 15
   max_seq_length: 2048
   subset: ["train"]
@@ -25,12 +25,12 @@ model:
     mlstm:
       conv1d_kernel_size: 4
       qkv_proj_blocksize: 4
-      num_heads: 4
+      num_heads: 8
       embedding_dim: 1024
   slstm_block:
     slstm:
       backend: cuda
-      num_heads: 4
+      num_heads: 8
       conv1d_kernel_size: 4
       bias_init: powerlaw_blockdependent
       embedding_dim: 1024
@@ -49,9 +49,9 @@ training:
   num_epochs: 3
   batch_size: 2
   use_fsdp: true
-  lr: 0.00009
-  val_every_step: 10000
-  lr_warmup_steps: 750
+  lr: 0.00001
+  val_every_step: 5000
+  lr_warmup_steps: 2000
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001
   weight_decay: 0.1

@@ -7,7 +7,7 @@ basic:
   model_weight_path: "${training.model_save_dir}/model_130000.pth"
 
 dataset:
-  name: 'slim_pajama'
+  name: 'ja_wiki' # slim_pajama | ja_wiki | ja_cc
   min_seq_length: 15
   max_seq_length: 2048
   subset: ["train"]
@@ -15,7 +15,6 @@ dataset:
   train_ratio: 0.8
   valid_ratio: 0.1
   test_ratio: 0.1
-  pad_token_id: 50257
 
 tokenizer:
   name: 'gpt2'
