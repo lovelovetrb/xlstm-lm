@@ -95,7 +95,7 @@ class Trainer:
             loss = self._compute_loss(outputs, label)
             self._backward_and_optimize(loss)
             self._update_running_loss(loss)
-            self._check_nan_loss()
+            dist.barrier()
 
     def _clear_cache(self) -> None:
         if self.config.basic.device == "cuda":
