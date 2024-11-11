@@ -18,7 +18,7 @@ class NextTokenPredictionDataGenerator:
         self.eos_token_id = self._tokenizer.convert_tokens_to_ids("[EOS]")
         self.pad_token_id = self._tokenizer.convert_tokens_to_ids("[PAD]")
 
-    def _tokenize_dataset(self, text: str) -> dict:
+    def tokenize_dataset(self, text: str) -> dict:
         tokens = self._get_tokens(text.replace("\n", ""))
         input_ids = tokens["input_ids"][0]
         return self._prepare_lm_features_and_labels(input_ids)

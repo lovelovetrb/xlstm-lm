@@ -47,7 +47,7 @@ class NlpDataset(IterableDataset):
     # ruff: noqa: ANN204
     def __iter__(self):
         for item in self.data:
-            tokenized_data = self.ntp_data_generator._tokenize_dataset(item["text"])
+            tokenized_data = self.ntp_data_generator.tokenize_dataset(item["text"])
             yield tokenized_data
 
 
