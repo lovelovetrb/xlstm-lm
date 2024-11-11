@@ -4,7 +4,7 @@ basic:
   device: 'cuda'
   mode: 'train' # 'train' or 'eval'
   project_name: 'xlstm_1.3b_kanolab'
-  project_tag: 'xlstm_1.3b_ja_localized'
+  project_tag: 'xlstm_1.3b_ja_localized_v2'
   model_weight_path: "${training.model_save_dir}/model_10000.pth"
 
 dataset:
@@ -13,9 +13,6 @@ dataset:
   max_seq_length: 2048
   subset: ["train"]
   # subset: ["train", "validation", "test"]
-  train_ratio: 0.8
-  valid_ratio: 0.1
-  test_ratio: 0.1
 
 tokenizer:
   name: 'gpt2'
@@ -60,4 +57,4 @@ training:
   amp_precision: bfloat16
   weight_precision: float32
   enable_mixed_precision: true  
-  model_save_dir: 'src/checkpoints/train-${basic.project_tag}-${dataset.name}'
+  model_save_dir: '/backup/tmp/mbaba/xlstm/checkpoints/train-${basic.project_tag}-${dataset.name}'

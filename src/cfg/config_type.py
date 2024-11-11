@@ -19,9 +19,6 @@ class DatasetConfig:
     name: str
     min_seq_length: int
     max_seq_length: int
-    train_ratio: float
-    valid_ratio: float
-    test_ratio: float
     subset: List[str] = field(default_factory=list)
 
 
@@ -34,6 +31,7 @@ class TokenizerConfig:
 class TrainingConfig:
     num_epochs: int
     batch_size: int
+    valid_step: int
     use_fsdp: bool
     lr: float
     val_every_step: int
