@@ -7,15 +7,11 @@ basic:
   model_weight_path: "${training.model_save_dir}/model_130000.pth"
 
 dataset:
-  name: 'slim_pajama'
+  name: 'ja_wiki' # slim_pajama | ja_wiki | ja_cc
   min_seq_length: 15
   max_seq_length: 2048
   subset: ["train"]
   # subset: ["train", "validation", "test"]
-  train_ratio: 0.8
-  valid_ratio: 0.1
-  test_ratio: 0.1
-  pad_token_id: 50257
 
 tokenizer:
   name: 'gpt2'
@@ -25,21 +21,21 @@ model:
     mlstm:
       conv1d_kernel_size: 4
       qkv_proj_blocksize: 4
-      num_heads: 4
-      embedding_dim: 192
+      num_heads: 2
+      embedding_dim: 12
   slstm_block:
     slstm:
       backend: cuda
-      num_heads: 4
+      num_heads: 2
       conv1d_kernel_size: 4
       bias_init: powerlaw_blockdependent
-      embedding_dim: 192
+      embedding_dim: 12
     feedforward:
       proj_factor: 1.3
       act_fn: gelu
   context_length: ${dataset.max_seq_length}
   num_blocks: 4
-  embedding_dim: 192
+  embedding_dim: 12
   slstm_at: [3]
   # NOTE: The following parameters is for the GPT2 model(https://huggingface.co/docs/transformers/en/model_doc/gpt2)
   # vocab size = gpt-2 vocab size + bos + eos + pad
@@ -50,7 +46,7 @@ training:
   batch_size: 2
   use_fsdp: true
   lr: 0.001
-  val_every_step: 10000
+  val_every_step: 10
   lr_warmup_steps: 750
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001
@@ -59,4 +55,4 @@ training:
   amp_precision: bfloat16
   weight_precision: float32
   enable_mixed_precision: true  
-  model_save_dir: 'src/checkpoints/train-${basic.project_tag}-${dataset.name}'
+  model_save_dir: '/backup/tmp/mbaba/xlstm/checkpoints/train-${basic.project_tag}-${dataset.name}'

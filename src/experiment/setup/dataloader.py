@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
 
 from src.cfg.config_type import ExperimentConfig
 from src.dataset.nlp_dataset import (
@@ -9,10 +10,13 @@ from src.dataset.nlp_dataset import (
 )
 
 
-def setup_dataset(config: ExperimentConfig, rank: int, world_size: int, subset: str) -> DataLoader:
-    # TODO: DatasetGeneratorに対してtokenizerを渡すような実装に変更
-    # https://github.com/lovelovetrb/xlstm-lm/issues/31
-    dataset_generator = NlpDatasetGenerator(config)
+def get_dataset_generator(config: ExperimentConfig, tokenizer: AutoTokenizer) -> NlpDatasetGenerator:
+    return NlpDatasetGenerator(config, tokenizer)
+
+
+def setup_dataloader(
+    dataset_generator: NlpDatasetGenerator, config: ExperimentConfig, rank: int, world_size: int, subset: str
+) -> DataLoader:
     dataset = get_dataset_subset(dataset_generator, subset)
     if config.training.use_fsdp:
         dataset = DistributedIterableWrapper(dataset, world_size, rank)

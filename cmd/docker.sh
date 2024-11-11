@@ -18,7 +18,7 @@ shell()
 {
     GPU_ID=${1:-all}
     echo "USE GPU_ID: $GPU_ID"
-    docker run --shm-size=10g --gpus \""device=$GPU_ID"\" -it -v $(pwd):/app --env-file ./.env $IMAGE_NAME:latest
+    docker run --shm-size=10g --gpus \""device=$GPU_ID"\" -it --rm -v $(pwd):/app --env-file ./.env $IMAGE_NAME:latest
 }
 
 help(){

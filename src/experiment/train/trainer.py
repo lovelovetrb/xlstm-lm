@@ -4,11 +4,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
-import wandb
 from torch.distributed.fsdp import FullStateDictConfig, StateDictType
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from tqdm import tqdm
 
+import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
@@ -40,6 +40,10 @@ class Trainer:
         self.epoch = 1
         self.running_loss = torch.tensor(0.0).to(self.rank)
 
+        # checkpoint保存用のディレクトリを作成
+        if args.rank == 0:
+            Path(self.config.training.model_save_dir).mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"Model save directory: {self.config.training.model_save_dir} created.")
         dist.barrier()
 
     def train(self) -> None:
@@ -95,13 +99,11 @@ class Trainer:
             loss = self._compute_loss(outputs, label)
             self._backward_and_optimize(loss)
             self._update_running_loss(loss)
-            self._check_nan_loss()
+            dist.barrier()
 
     def _clear_cache(self) -> None:
         if self.config.basic.device == "cuda":
             torch.cuda.empty_cache()
-            if hasattr(torch.cuda, "memory_summary"):
-                self.logger.info(torch.cuda.memory_summary(device=self.rank))
 
     def _compute_loss(self, outputs: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
         return self.criterion(
@@ -125,29 +127,62 @@ class Trainer:
 
     def _validate_if_needed(self) -> None:
         if self.step % self.config.training.val_every_step == 0 and self.step != 0:
-            self.valid_step()
+            self._valid()
+            self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
 
-    def valid_step(self) -> None:
-        self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
+    def _valid(self) -> None:
+        self.model.eval()
+        self.valid_loss = 0.0
+        valid_steps = self.config.training.val_steps
+        self._valid_step(valid_steps)
+
+    def _valid_step(self, valid_steps: int) -> None:
+        for batch in self.train_loader:
+            feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
+            with torch.no_grad():
+                outputs = self.model(feature)
+                loss = self._compute_loss(outputs, label)
+                self.valid_loss += loss.item()
+                valid_steps -= 1
+                if valid_steps == 0:
+                    break
+        self.valid_loss /= self.config.training.val_steps
+
+    def _valid_step_logging(self) -> None:
+        self.logger.info(f"Validation Loss: {self.valid_loss} | steps: {self.step}")
+        wandb.log(
+            {
+                "Validation Loss": self.valid_loss,
+                "Epoch": self.epoch,
+                "Step": self.step,
+            }
+        )
+
+    def text_generate(self) -> None:
+        pass
 
     def save_model_wrapper(self, save_path: str) -> None:
+        dist.barrier()
+        if self.rank == 0:
+            self.logger.info(f"checkpoint saving : {save_path}")
         if self.config.training.use_fsdp:
             with FSDP.state_dict_type(
                 self.model,
                 StateDictType.FULL_STATE_DICT,
                 FullStateDictConfig(
                     rank0_only=True,
-                    offload_to_cpu=True,
                 ),
             ):
                 if self.rank == 0:
                     self.save_model(save_path)
-            dist.barrier()
         else:
-            self.save_model(save_path)
+            if self.rank == 0:
+                self.save_model(save_path)
+
+        dist.barrier()
+        self.model.train()
 
     def save_model(self, save_path: str) -> None:
         state_dict = self.model.state_dict()
-        Path(save_path).mkdir(parents=True)
         torch.save(state_dict, save_path)
         self.logger.info(f"Model has been saved to {save_path}")

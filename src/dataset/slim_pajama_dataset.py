@@ -14,4 +14,5 @@ class SlimPajamaDataset:
             "cerebras/SlimPajama-627B",
             split=subset,
             streaming=True,
+            cache_dir="/backup/tmp/huggingface_cache",
         )

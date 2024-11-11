@@ -59,7 +59,7 @@ class LinearWarmupCosineAnnealing(BaseLRScheduler):
             return min_lr + coeff * (max_lr - min_lr)
         return min_lr
 
-    def get_lr(self) -> Generator[typing.Any, None, None]:
+    def get_lr(self) -> list[float]:
         """Returns the current learning rate for each parameter group."""
         step = self.last_epoch
         return (

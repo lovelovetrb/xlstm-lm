@@ -1,18 +1,14 @@
 import functools
 
 import torch
-from dacite import Config as DaciteConfig
-from dacite import from_dict
-from omegaconf import OmegaConf
 from torch.distributed.fsdp import (
     BackwardPrefetch,
-    CPUOffload,
     MixedPrecision,
     ShardingStrategy,
 )
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
-from xlstm import xLSTMLMModel, xLSTMLMModelConfig
+from xlstm import xLSTMLMModel
 
 from src.cfg.config_type import ExperimentConfig
 from src.utils import torch_dtype_map
@@ -20,17 +16,14 @@ from src.utils import torch_dtype_map
 
 # ruff: noqa: N801
 class xLSTMModelWrapper:
-    def __init__(self, config: ExperimentConfig, rank: int) -> None:
+    def __init__(self, config: ExperimentConfig, rank: int, model_weight_path: str | None) -> None:
         self.config = config
         self.rank = rank
-        self.model_cofing = from_dict(
-            data_class=xLSTMLMModelConfig,
-            data=OmegaConf.to_container(config.model, resolve=True),
-            config=DaciteConfig(strict=True),
-        )
-        self.model = xLSTMLMModel(self.model_cofing)
+        self.model_weight_path = model_weight_path
+        self.model = xLSTMLMModel(self.config.model)
 
     def get_model(self) -> torch.nn.Module:
+        self.load_checkpoint()
         self.model = self.model.to(dtype=torch_dtype_map[self.config.training.weight_precision])
         self.model = self.model.to(self.rank)
 
@@ -45,6 +38,10 @@ class xLSTMModelWrapper:
             self.model = self._wrap_fsdp(self.model)
         return self.model
 
+    def load_checkpoint(self) -> None:
+        if self.model_weight_path is not None:
+            self.model.load_state_dict(torch.load(self.model_weight_path))
+
     def _train(self) -> None:
         self.model.reset_parameters()
         self.model.train()
@@ -56,10 +53,10 @@ class xLSTMModelWrapper:
         return FSDP(
             model,
             sharding_strategy=ShardingStrategy.SHARD_GRAD_OP,
+            # sharding_strategy=ShardingStrategy._HYBRID_SHARD_ZERO2,
             auto_wrap_policy=self._get_auto_wrap_policy(),
             backward_prefetch=BackwardPrefetch.BACKWARD_PRE,
             device_id=self.rank,
-            cpu_offload=CPUOffload(offload_params=True),
             param_init_fn=self._param_init_fn,
             limit_all_gathers=True,
             mixed_precision=self._get_mix_precision_policy(),
@@ -71,14 +68,18 @@ class xLSTMModelWrapper:
             size_based_auto_wrap_policy,
             # TODO: modelのパラメータ数に応じて調整
             # https://github.com/lovelovetrb/xlstm-lm/issues/26
-            min_num_params=int(5e7),
+            min_num_params=int(1e8),
         )
 
     def _get_mix_precision_policy(self) -> MixedPrecision:
         return MixedPrecision(
-            param_dtype=torch_dtype_map[self.config.training.weight_precision],  # weight_precisionがfloat32
-            reduce_dtype=torch_dtype_map[self.config.training.amp_precision],  # amp_precisionがbfloat16
-            buffer_dtype=torch_dtype_map[self.config.training.amp_precision],  # 通常はreduce_dtypeと同じ
+            # weight_precisionがfloat32
+            param_dtype=torch_dtype_map[self.config.training.weight_precision],
+            # amp_precisionがbfloat16
+            reduce_dtype=torch_dtype_map[self.config.training.amp_precision],
+            # 通常はreduce_dtypeと同じ
+            buffer_dtype=torch_dtype_map[self.config.training.amp_precision],
+            keep_low_precision_grads=True,
         )
 
     def _param_init_fn(self, module: torch.nn.Module) -> tuple:
@@ -88,6 +89,13 @@ class xLSTMModelWrapper:
             {
                 "weight_decay": self.config.training.weight_decay,
                 "params": optim_groups[0],
+                "foreach": True,
+                "fused": True,
             },
-            {"weight_decay": 0.0, "params": optim_groups[1]},
+            {
+                "weight_decay": 0.0,
+                "params": optim_groups[1],
+                "foreach": True,
+                "fused": True,
+            },
         )
