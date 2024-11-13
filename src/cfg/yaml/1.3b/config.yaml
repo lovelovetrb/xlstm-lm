@@ -2,13 +2,13 @@
 basic:
   seed: 42
   device: 'cuda'
-  mode: 'eval' # 'train' or 'eval'
-  project_name: 'xlstm_fsdp'
-  project_tag: 'xlstm_1.3b'
+  mode: 'train' # 'train' or 'eval'
+  project_name: 'xlstm_genkai'
+  project_tag: 'xlstm_1.3b_grad_accum'
   model_weight_path: "${training.model_save_dir}/model_10000.pth"
 
 dataset:
-  name: 'slim_pajama'
+  name: 'ja_wiki'
   min_seq_length: 15
   max_seq_length: 2048
   subset: ["train"]
@@ -48,15 +48,16 @@ model:
 training:
   num_epochs: 3
   batch_size: 2
+  grad_accum_steps: 128
   use_fsdp: true
-  lr: 0.00009
-  val_every_step: 10000
+  lr: 0.0001
+  val_every_step: 100
   lr_warmup_steps: 750
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001
   weight_decay: 0.1
   # TODO: 正しいステップ数を設定する
-  num_steps: 46585
+  num_steps: 286102
   amp_precision: bfloat16
   weight_precision: float32
   enable_mixed_precision: true  
