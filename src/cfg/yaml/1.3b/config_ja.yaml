@@ -4,7 +4,7 @@ basic:
   device: 'cuda'
   mode: 'train' # 'train' or 'eval'
   project_name: 'xlstm_1.3b_kanolab'
-  project_tag: 'xlstm_1.3b_ja_localized_v2'
+  project_tag: 'xlstm_1.3b_ja_localized_v3'
   model_weight_path: "${training.model_save_dir}/model_10000.pth"
 
 dataset:
@@ -46,8 +46,9 @@ training:
   num_epochs: 3
   batch_size: 2
   use_fsdp: true
-  lr: 0.00001
+  lr: 0.000007
   val_every_step: 5000
+  val_steps: 300
   lr_warmup_steps: 2000
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001

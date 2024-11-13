@@ -31,10 +31,10 @@ class TokenizerConfig:
 class TrainingConfig:
     num_epochs: int
     batch_size: int
-    valid_step: int
     use_fsdp: bool
     lr: float
     val_every_step: int
+    val_steps: int
     lr_warmup_steps: int
     lr_decay_until_steps: int
     lr_decay_factor: float

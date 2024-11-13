@@ -47,6 +47,7 @@ training:
   use_fsdp: true
   lr: 0.001
   val_every_step: 10
+  val_steps: 10
   lr_warmup_steps: 750
   lr_decay_until_steps: ${.num_steps}
   lr_decay_factor: 0.001
