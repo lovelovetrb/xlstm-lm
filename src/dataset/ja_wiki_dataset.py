@@ -15,5 +15,4 @@ class JaWikiDataset:
             "20231101.ja",
             split=subset,
             streaming=True,
-            cache_dir="/backup/tmp/huggingface_cache",
         )
