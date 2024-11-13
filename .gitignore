@@ -1,4 +1,8 @@
+src/dataset/texts/one_line_wiki_data.json
 src/checkpoints/*
+
+debug/
+run/
 
 wandb/
 .pytest_cache/
@@ -14,6 +18,4 @@ wheels/
 # venv
 .venv
 
-.env
 
-.vscode/
