@@ -1,9 +1,15 @@
-from dacite import from_dict
+from dataclasses import dataclass
+
 from omegaconf import OmegaConf
 
-from src.cfg.config_type import ExperimentConfig
+# @dataclass
+# class ExperimentConfig:
+#     pass
 
 
-def load_config(cfg_path: str) -> ExperimentConfig:
+def load_config(cfg_path: str):
+    print("Loading config...")
     cfg = OmegaConf.load(cfg_path)
-    return from_dict(data_class=ExperimentConfig, data=OmegaConf.to_container(cfg, resolve=True))
+    # TODO: dataclassを用いた型チェックの定義
+    # OmegaConf.structured(ExperimentConfig)
+    return cfg

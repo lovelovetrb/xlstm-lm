@@ -1,7 +1,3 @@
-import datetime
-import sys
-import typing
-
 import torch
 import torch.distributed as dist
 import wandb
@@ -16,44 +12,17 @@ torch_dtype_map: dict[str, torch.dtype] = {
 }
 
 
-# ruff: noqa: ANN401
-def is_serializable(value: typing.Any) -> bool:
-    return isinstance(value, (int, float, str, bool))
-
-
-def wandb_init(rank: int, config: ExperimentConfig) -> None:
-    # config_serializable = {
-    #     key: value for key, value in config.items() if is_serializable(value)
-    # }
+def wandb_init(config):
     wandb.init(
-        project=config.basic.project_name,
-        group=f"{config.dataset.name}-{config.basic.project_tag}-{config.training.lr}",
-        name=f"RUN: {rank}",
+        project="xlstm_train_v2",
         config=config,
     )
 
 
-def dist_setup(rank: int, world_size: int, logger: logger) -> None:
-    try:
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        dist.init_process_group(
-            backend="nccl",
-            rank=rank,
-            world_size=world_size,
-            timeout=datetime.timedelta(minutes=30),
-        )
-        torch.cuda.set_device(rank)
-        logger.info(f"Rank {dist.get_rank()}: Process group initialized")
-    except Exception as e:
-        logger.exception(f"Failed to initialize process group: {e}")
-        raise
+def dist_setup(rank, world_size):
+    # initialize the process group
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
 
-def dist_cleanup() -> None:
+def dist_cleanup():
     dist.destroy_process_group()
-
-
-def get_logger(name: str) -> logger:
-    logger.add(sys.stderr, format="{time} {level} {message}", filter=name, level="INFO")
-    return logger

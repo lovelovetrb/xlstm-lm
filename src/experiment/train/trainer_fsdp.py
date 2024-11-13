@@ -3,19 +3,16 @@ import os
 
 import torch
 import torch.distributed as dist
-import wandb
-from torch.distributed.fsdp import FullStateDictConfig, StateDictType
+from torch.distributed.fsdp import FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import StateDictType
 from tqdm import tqdm
-
-from src.cfg.config_type import ExperimentConfig
-from src.utils import get_logger, torch_dtype_map
 
 import wandb
 from src.utils import torch_dtype_map
 
 
-class Trainer:
+class TrainerFSDP:
     def __init__(
         self, model, train_loader, lr_scheduler, optimizer, criterion, config, rank
     ):
@@ -40,7 +37,8 @@ class Trainer:
             self.train_loader, desc=f"#{self.rank:>2} ", position=self.rank + 1
         )
         for _ in range(self.config.training.num_epochs):
-            print(f"######### Epoch {self.epoch} #########")
+            if self.rank == 0:
+                print(f"######### Epoch {self.epoch} #########")
             for batch in monitoring:
                 monitoring.set_description_str(
                     f"Rank {self.rank} Steps {self.step+1}/{self.train_step_num} (Loss: {self.running_loss:.4f})"
@@ -51,10 +49,9 @@ class Trainer:
                     self.valid_step()
                 self.step += 1
             self.epoch += 1
-            
             wandb.alert(
                 title="Epoch Done",
-                text=f"Epoch {self.epoch-1} is done! Loss: {self.running_loss:.4f}",
+                text=f"Epoch {self.epoch-1} is done! Loss: {self.running_loss}",
             )
 
     def train_step(self, batch):
@@ -78,11 +75,29 @@ class Trainer:
             if math.isnan(self.running_loss):
                 raise ValueError("Loss is NaN!")
 
-    def save_model(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save(self.model.state_dict(), path)
-        print(f"Model has been saved to {path}")
+    def valid_step(self):
+        self.save_model(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
 
+    def save_model(self, save_path):
+        # Save checkpoints.
+        with FSDP.state_dict_type(
+            self.model,
+            StateDictType.FULL_STATE_DICT,
+            FullStateDictConfig(
+                rank0_only=True,
+                offload_to_cpu=True,
+                # Default value is to translate back to Hugging Face Transformers format,
+                # when saving full checkpoints for models trained with SMP tensor parallelism.
+                # translate_on_save=True
+            ),
+        ):
+            state_dict = self.model.state_dict()
+            if dist.get_rank() == 0:
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                # This name is needed for HF from_pretrained API to work.
+                torch.save(state_dict, save_path)
+                print(f"Model has been saved to {save_path}")
+            dist.barrier()
 
     def step_logging(self):
         wandb.log(
@@ -93,4 +108,3 @@ class Trainer:
                 "Step": self.step,
             }
         )
-

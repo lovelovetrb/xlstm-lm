@@ -1,6 +1,0 @@
-.github/
-.mypy_cache/
-.ruff_cache/
-.env
-tests/
-wandb/
