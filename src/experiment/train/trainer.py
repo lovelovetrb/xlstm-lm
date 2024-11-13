@@ -54,18 +54,16 @@ class Trainer:
     def _train_epoch(self) -> None:
         if self.rank == 0:
             self.logger.info(f"######### Epoch {self.epoch} #########")
-        for batch in self._get_progress_bar():
-            self._train_step(batch)
-            self._step_logging()
-            self._validate_if_needed()
-            self.step += 1
+        for batch_idx, batch in self._get_progress_bar():
+            self._train_step(batch_idx, batch)
         self._epoch_logging()
         self.epoch += 1
 
-    def _step_logging(self) -> None:
+    def _step_logging(self, loss: torch.Tensor) -> None:
         wandb.log(
             {
-                "Loss": self.running_loss,
+                "Accum Loss": self.running_loss,
+                "Last Original Loss": loss.item(),
                 "Learning Rate": self.optimizer.param_groups[0]["lr"],
                 "Epoch": self.epoch,
                 "Step": self.step,
@@ -80,14 +78,14 @@ class Trainer:
 
     def _get_progress_bar(self) -> tqdm:
         return tqdm(
-            self.train_loader,
+            enumerate(self.train_loader),
             desc=f"Epoch {self.epoch}",
             position=self.rank + 1,
             leave=False,
             dynamic_ncols=True,
         )
 
-    def _train_step(self, batch: dict) -> None:
+    def _train_step(self, batch_idx: int, batch: dict) -> None:
         feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
         with torch.autocast(
             device_type=self.config.basic.device,
@@ -95,31 +93,45 @@ class Trainer:
             enabled=self.config.training.enable_mixed_precision,
         ):
             self._clear_cache()
-            self.optimizer.zero_grad()
             outputs = self.model(feature)
             loss = self._compute_loss(outputs, label)
-            self._backward_and_optimize(loss)
-            self._update_running_loss(loss)
-            dist.barrier()
+        self._backward(loss)
+        self._accumulate_loss(loss)
+        if (batch_idx + 1) % self.config.training.grad_accum_steps == 0:
+            self._optimize()
+            self._update_running_loss()
+            self._check_nan_loss()
+            self._step_logging(loss)
+            self._validate_if_needed()
+            self.step += 1
 
     def _clear_cache(self) -> None:
         if self.config.basic.device == "cuda":
             torch.cuda.empty_cache()
 
     def _compute_loss(self, outputs: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
-        return self.criterion(
+        loss = self.criterion(
             outputs.view(-1, self.config.model.vocab_size),
             label.view(-1),
         )
+        return loss / self.config.training.grad_accum_steps
 
-    def _backward_and_optimize(self, loss: torch.Tensor) -> None:
+    def _backward(self, loss: torch.Tensor) -> None:
         loss.backward()
+
+    def _optimize(self) -> None:
         self.optimizer.step()
+        self.optimizer.zero_grad()
         self.lr_scheduler.step()
 
-    def _update_running_loss(self, loss: torch.Tensor) -> None:
-        self.running_loss = loss.item()
-        self._check_nan_loss()
+    def _accumulate_loss(self, loss: torch.Tensor) -> None:
+        if not hasattr(self, "_accumulated_loss"):
+            self._accumulated_loss = 0
+        self._accumulated_loss += loss.item() * self.config.training.grad_accum_steps
+
+    def _update_running_loss(self) -> None:
+        self.running_loss = self._accumulated_loss / self.config.training.grad_accum_steps
+        self._accumulated_loss = 0
 
     def _check_nan_loss(self) -> None:
         if math.isnan(self.running_loss):
@@ -140,7 +152,7 @@ class Trainer:
 
     def _valid_step(self) -> None:
         self.logger.info(f"Step {self.step} Validation...\n")
-        for step, batch in enumerate(self._get_progress_bar()):
+        for step, batch in self._get_progress_bar():
             feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
             with torch.no_grad():
                 outputs = self.model(feature)
