@@ -1,9 +1,25 @@
+# ruff: noqa
+# type: ignore
 # Copyright (c) NXAI GmbH and its affiliates 2024
 # Maximilian Beck
 import math
 from abc import abstractmethod
+import typing
 
+from torch import optim
 from torch.optim import lr_scheduler
+
+from src.cfg.config_type import ExperimentConfig
+
+
+def setup_lr_scheduler(optimizer: optim.Optimizer, config: ExperimentConfig) -> optim.lr_scheduler._LRScheduler:
+    return LinearWarmupCosineAnnealing(
+        optimizer=optimizer,
+        warmup_steps=config.training.lr_warmup_steps,
+        decay_until_step=config.training.lr_decay_until_steps,
+        max_lr=config.training.lr,
+        min_lr=config.training.lr_decay_factor * config.training.lr,
+    )
 
 
 class BaseLRScheduler(lr_scheduler._LRScheduler):
@@ -22,9 +38,7 @@ class BaseLRScheduler(lr_scheduler._LRScheduler):
 
 
 class LinearWarmupCosineAnnealing(BaseLRScheduler):
-    def __init__(
-        self, optimizer, warmup_steps, decay_until_step, max_lr, min_lr, last_epoch=-1
-    ):
+    def __init__(self, optimizer, warmup_steps, decay_until_step, max_lr, min_lr, last_epoch=-1):
         self.optimizer = optimizer
         self.warmup_steps = warmup_steps
         self.decay_until_step = decay_until_step
@@ -43,15 +57,12 @@ class LinearWarmupCosineAnnealing(BaseLRScheduler):
             assert 0.0 <= decay_ratio <= 1.0
             coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
             return min_lr + coeff * (max_lr - min_lr)
-        else:
-            return min_lr
+        return min_lr
 
     def get_lr(self) -> list[float]:
         """Returns the current learning rate for each parameter group."""
         step = self.last_epoch
         return (
-            self.compute_lr(
-                step, self.warmup_steps, self.decay_until_step, self.max_lr, self.min_lr
-            )
+            self.compute_lr(step, self.warmup_steps, self.decay_until_step, self.max_lr, self.min_lr)
             for _ in self.optimizer.param_groups
         )

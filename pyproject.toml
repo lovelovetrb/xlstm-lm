@@ -11,13 +11,13 @@ dependencies = [
     "transformers>=4.41.2",
     "omegaconf>=2.3.0",
     "datasets>=2.20.0",
-    "pytest>=8.2.2",
     "tqdm>=4.66.4",
     "dacite>=1.8.1",
     "setuptools>=70.1.0",
     "zstandard>=0.22.0",
     "ninja>=1.11.1.1",
     "wandb>=0.17.5",
+    "loguru>=0.7.2",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -28,10 +28,50 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "mypy>=1.13.0",
+    "ruff>=0.7.1",
+    "pytest>=8.3.3",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]
+
+[tool.mypy]
+ignore_missing_imports = true
+
+## https://gihyo.jp/article/2023/03/monthly-python-2303
+## 略称一覧: https://pypi.org/project/ruff/0.0.242/#supported-rule
+[tool.ruff]
+line-length = 120
+
+lint.select = ["ALL"]
+lint.ignore = [
+    "D",
+]
+
+# ファイル毎に無効とする設定
+# https://docs.astral.sh/ruff/settings/#lint_per-file-ignores
+[tool.ruff.lint.per-file-ignores]
+"*.py" = [
+    "N812",
+    "N817",
+    "S101",
+    "G004",
+    "TD002",
+    "FA100",
+    "FA102",
+    "ANN101",
+    "COM812",
+    "ISC001",
+    "ERA001",
+    "FIX002",
+    "INP001",
+    "TRY002",
+    "TRY401",
+    "RET505",
+    "PLR5501"
+]
