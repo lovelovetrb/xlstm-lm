@@ -18,8 +18,7 @@ def setup_dataloader(
     dataset_generator: NlpDatasetGenerator, config: ExperimentConfig, rank: int, world_size: int, subset: str
 ) -> DataLoader:
     dataset = get_dataset_subset(dataset_generator, subset)
-    if config.training.use_fsdp:
-        dataset = DistributedIterableWrapper(dataset, world_size, rank)
+    dataset = DistributedIterableWrapper(dataset, world_size, rank)
     return DataLoader(
         dataset,
         batch_size=config.training.batch_size,
