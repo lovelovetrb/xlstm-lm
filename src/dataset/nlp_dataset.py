@@ -15,6 +15,10 @@ class DistributedIterableWrapper(IterableDataset):
         self.dataset = dataset
         self.num_replicas = num_replicas
         self.rank = rank
+        self.start_index = 0
+
+    def set_start_index(self, start_index: int) -> None:
+        self.start_index = start_index
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -32,7 +36,7 @@ class DistributedIterableWrapper(IterableDataset):
         # データセットのイテレータを取得
         dataset_iter = iter(self.dataset)
 
-        for i, item in enumerate(dataset_iter):
+        for i, item in enumerate(dataset_iter, start=self.start_index):
             # この項目が現在のランクとワーカーに属するかを確認
             if i % (self.num_replicas * num_workers) == self.rank * num_workers + worker_id:
                 yield item
