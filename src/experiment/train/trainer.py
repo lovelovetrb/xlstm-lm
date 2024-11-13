@@ -39,6 +39,7 @@ class Trainer:
         self.step = 0
         self.epoch = 1
         self.running_loss = torch.tensor(0.0).to(self.rank)
+        self.valid_loss = torch.tensor(0.0).to(self.rank)
 
         # checkpoint保存用のディレクトリを作成
         if args.rank == 0:
@@ -133,26 +134,31 @@ class Trainer:
     def _valid(self) -> None:
         self.model.eval()
         self.valid_loss = 0.0
-        valid_steps = self.config.training.val_steps
-        self._valid_step(valid_steps)
+        self.train_loader.dataset.set_start_index(self.step)
+        self._valid_step()
+        self.train_loader.dataset.set_start_index(self.step + self.config.training.val_steps)
 
-    def _valid_step(self, valid_steps: int) -> None:
-        for batch in self.train_loader:
+    def _valid_step(self) -> None:
+        self.logger.info(f"Step {self.step} Validation...\n")
+        for step, batch in enumerate(self._get_progress_bar()):
             feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
             with torch.no_grad():
                 outputs = self.model(feature)
                 loss = self._compute_loss(outputs, label)
                 self.valid_loss += loss.item()
-                valid_steps -= 1
-                if valid_steps == 0:
+                if step == self.config.training.val_steps:
                     break
         self.valid_loss /= self.config.training.val_steps
+        self.valid_ppl = math.exp(self.valid_loss)
+        self._valid_step_logging()
+        self._clear_cache()
 
     def _valid_step_logging(self) -> None:
-        self.logger.info(f"Validation Loss: {self.valid_loss} | steps: {self.step}")
+        self.logger.info(f"Step {self.step} Validation -> loss: {self.valid_loss} | ppl: {self.valid_ppl}")
         wandb.log(
             {
-                "Validation Loss": self.valid_loss,
+                "valid loss": self.valid_loss,
+                "valid ppl": self.valid_ppl,
                 "Epoch": self.epoch,
                 "Step": self.step,
             }
