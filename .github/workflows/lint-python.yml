@@ -3,8 +3,9 @@ name: Lint Check
 on:
   pull_request:
   workflow_dispatch:
-  branches:
-    - main
+  push:
+    branches:
+      - main
 
 jobs:
   run-lint:
