@@ -1,0 +1,70 @@
+# 1.3B params
+basic:
+  seed: 42
+  device: 'cuda'
+  mode: 'eval' # 'train' or 'eval'
+  project_name: 'xlstm_genkai'
+  project_tag: 'xlstm_1.3b_grad_accum'
+  model_weight_path: "${training.model_save_dir}/model_200.pth"
+
+
+dataset:
+  name: 'ja_wiki'
+  min_seq_length: 15
+  max_seq_length: 2048
+  subset: ["train"]
+  # subset: ["train", "validation", "test"]
+  train_ratio: 0.8
+  valid_ratio: 0.1
+  test_ratio: 0.1
+
+tokenizer:
+  name: 'gpt2'
+
+model:
+  mlstm_block:
+    mlstm:
+      conv1d_kernel_size: 8
+      qkv_proj_blocksize: 4
+      num_heads: 8
+      embedding_dim: 1024
+  slstm_block:
+    slstm:
+      backend: cuda
+      num_heads: 8
+      conv1d_kernel_size: 8
+      bias_init: powerlaw_blockdependent
+      embedding_dim: 1024
+    feedforward:
+      proj_factor: 1.3
+      act_fn: gelu
+  context_length: ${dataset.max_seq_length}
+  num_blocks: 48
+  embedding_dim: 2048
+  slstm_at: [3, 5, 7, 40, 42, 44]
+  # NOTE: The following parameters is for the GPT2 model(https://huggingface.co/docs/transformers/en/model_doc/gpt2)
+  # vocab size = gpt-2 vocab size + bos + eos + pad
+  vocab_size: 50260
+
+training:
+  num_epochs: 3
+  batch_size: 2
+  # grad_accum_steps: 128
+  grad_accum_steps: 32
+  use_fsdp: true
+  # lr: 0.0001
+  lr: 0.00007
+  val_every_step: 400
+  val_steps: 1000
+  # lr_warmup_steps: 750
+  lr_warmup_steps: 2000
+  lr_decay_until_steps: ${.num_steps}
+  # lr_decay_factor: 0.001
+  lr_decay_factor: 0.002
+  weight_decay: 0.1
+  # TODO: 正しいステップ数を設定する
+  num_steps: 286102
+  amp_precision: bfloat16
+  weight_precision: float32
+  enable_mixed_precision: true  
+  model_save_dir: 'src/checkpoints/train-${basic.project_tag}-${dataset.name}'
