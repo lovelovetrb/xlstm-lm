@@ -17,7 +17,7 @@ from src.utils import dist_cleanup, dist_setup, get_logger
 
 
 class TextGenerator:
-    def __init__(self, model, tokenizer, eos_token_id):
+    def __init__(self, model, eos_token_id):
         self.model = model
         self.eos_token_id = eos_token_id
 
@@ -192,15 +192,13 @@ def main(rank, world_size, config):
     tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
     eos_token_id = tokenizer.eos_token_id
 
-    text = "[BOS]静岡市には"
+    text = "[BOS]著作権"
     tokenized_text = tokenizer(text, return_tensors="pt")
 
-    generated_text = Generator(model, eos_token_id).generate_text(
-        model,
+    generated_text = TextGenerator(model, eos_token_id).generate_text(
         tokenized_text["input_ids"].to(config.basic.device),
-        eos_token_id,
         max_length=config.dataset.max_seq_length,
-        temperature=0.6,
+        temperature=0.8,
         top_k=50,
         top_p=0.95,
         repetition_penalty=1.2,
