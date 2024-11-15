@@ -59,4 +59,4 @@ training:
   amp_precision: bfloat16
   weight_precision: float32
   enable_mixed_precision: true  
-  model_save_dir: '/backup/tmp/mbaba/xlstm/checkpoints/train-${basic.project_tag}-${dataset.name}'
+  model_save_dir: 'src/checkpoints/train-${basic.project_tag}-${dataset.name}'
