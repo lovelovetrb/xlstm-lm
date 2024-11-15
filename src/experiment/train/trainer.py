@@ -4,11 +4,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
-import wandb
 from torch.distributed.fsdp import FullStateDictConfig, StateDictType
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from tqdm import tqdm
 
+import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
@@ -101,7 +101,7 @@ class Trainer:
             self._optimize()
             self._update_running_loss()
             self._check_nan_loss()
-            self._step_logging(loss)
+            self._step_logging(loss * self.config.training.grad_accum_steps)
             self._validate_if_needed()
             self.step += 1
 
@@ -157,6 +157,7 @@ class Trainer:
             with torch.no_grad():
                 outputs = self.model(feature)
                 loss = self._compute_loss(outputs, label)
+                loss *= self.config.training.grad_accum_steps
                 self.valid_loss += loss.item()
                 if step == self.config.training.val_steps:
                     break
