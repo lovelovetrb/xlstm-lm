@@ -4,7 +4,7 @@ basic:
   device: 'cuda'
   mode: 'train' # 'train' or 'eval'
   project_name: 'xlstm_genkai'
-  project_tag: 'xlstm_1.3b_grad_accum'
+  project_tag: 'xlstm_1.3b_grad_accum_v2'
   model_weight_path: "${training.model_save_dir}/model_200.pth"
 
 
