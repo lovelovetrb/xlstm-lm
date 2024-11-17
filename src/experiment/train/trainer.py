@@ -141,9 +141,10 @@ class Trainer:
     def _validate_if_needed(self) -> None:
         if self.step % self.config.training.val_every_step == 0 and self.step != 0:
             self._valid()
-            self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
+            dist.barrier()
 
     def _valid(self) -> None:
+        self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
         self.model.eval()
         self.valid_loss = 0.0
         self.train_loader.dataset.set_start_index(self.step)
@@ -165,6 +166,7 @@ class Trainer:
         self.valid_ppl = math.exp(self.valid_loss)
         self._valid_step_logging()
         self._clear_cache()
+        dist.barrier()
 
     def _valid_step_logging(self) -> None:
         self.logger.info(f"Step {self.step} Validation -> loss: {self.valid_loss} | ppl: {self.valid_ppl}")
