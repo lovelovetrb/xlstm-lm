@@ -1,3 +1,6 @@
+import itertools
+from typing import Iterator, Optional
+
 import torch
 from torch.utils.data import IterableDataset
 from transformers import AutoTokenizer
@@ -16,9 +19,14 @@ class DistributedIterableWrapper(IterableDataset):
         self.num_replicas = num_replicas
         self.rank = rank
         self.start_index = 0
+        self._iterator: Optional[Iterator] = None
+        self._skip_counter = 0
 
     def set_start_index(self, start_index: int) -> None:
+        """データセットの開始位置を設定"""
         self.start_index = start_index
+        self._iterator = None
+        self._skip_counter = 0
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -29,17 +37,31 @@ class DistributedIterableWrapper(IterableDataset):
             worker_id = worker_info.id
             num_workers = worker_info.num_workers
 
-        # 各ワーカーとランクの組み合わせに対して一意のシードを生成
-        seed = self.rank * 10000 + worker_id
-        torch.manual_seed(seed)
+        # イテレータがない場合は新規作成
+        if self._iterator is None:
+            self._iterator = iter(self.dataset)
 
-        # データセットのイテレータを取得
-        dataset_iter = iter(self.dataset)
+            # start_indexまでスキップ
+            if self.start_index > 0:
+                items_to_skip = sum(
+                    1
+                    for i in range(self.start_index)
+                    if i % (self.num_replicas * num_workers) == self.rank * num_workers + worker_id
+                )
 
-        for i, item in enumerate(dataset_iter, start=self.start_index):
-            # この項目が現在のランクとワーカーに属するかを確認
-            if i % (self.num_replicas * num_workers) == self.rank * num_workers + worker_id:
+                # 必要な数のアイテムをスキップ
+                for _ in itertools.islice(self._iterator, items_to_skip):
+                    self._skip_counter += 1
+
+        # データの取得
+        total_workers = self.num_replicas * num_workers
+        worker_offset = self.rank * num_workers + worker_id
+
+        for item in self._iterator:
+            global_index = self._skip_counter
+            if global_index % total_workers == worker_offset:
                 yield item
+            self._skip_counter += 1
 
 
 class NlpDataset(IterableDataset):
