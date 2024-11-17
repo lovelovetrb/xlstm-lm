@@ -11,7 +11,7 @@ from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from xlstm import xLSTMLMModel
 
 from src.cfg.config_type import ExperimentConfig
-from src.utils import torch_dtype_map, get_logger
+from src.utils import get_logger, torch_dtype_map
 
 
 # ruff: noqa: N801
