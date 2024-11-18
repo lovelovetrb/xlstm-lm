@@ -36,8 +36,9 @@ class Trainer:
         self.criterion = args.criterion
         self.config = args.config
         self.rank = args.rank
-        self.step = 0
         self.epoch = 1
+        self.step = 0
+        self.iter = 0
         self.running_loss = torch.tensor(0.0).to(self.rank)
         self.valid_loss = torch.tensor(0.0).to(self.rank)
 
@@ -97,6 +98,7 @@ class Trainer:
             loss = self._compute_loss(outputs, label)
         self._backward(loss)
         self._accumulate_loss(loss)
+        self.iter += 1
         if (batch_idx + 1) % self.config.training.grad_accum_steps == 0:
             self._optimize()
             self._update_running_loss()
@@ -144,15 +146,21 @@ class Trainer:
             dist.barrier()
 
     def _valid(self) -> None:
+        dist.barrier()
         self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
+        dist.barrier()
         self.model.eval()
+        dist.barrier()
         self.valid_loss = 0.0
-        self.train_loader.dataset.set_start_index(self.step)
+        self.train_loader.dataset.set_start_index(self.iter)
         self._valid_step()
-        self.train_loader.dataset.set_start_index(self.step + self.config.training.val_steps)
+        dist.barrier()
+        self.train_loader.dataset.set_start_index(self.iter + self.config.training.val_steps)
+        dist.barrier()
 
     def _valid_step(self) -> None:
         self.logger.info(f"Step {self.step} Validation...\n")
+        dist.barrier()
         for step, batch in self._get_progress_bar():
             feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
             with torch.no_grad():
@@ -196,9 +204,11 @@ class Trainer:
             ):
                 if self.rank == 0:
                     self.save_model(save_path)
+                dist.barrier()
         else:
             if self.rank == 0:
                 self.save_model(save_path)
+            dist.barrier()
 
         dist.barrier()
         self.model.train()
