@@ -63,11 +63,12 @@ class Trainer:
     def _step_logging(self, loss: torch.Tensor) -> None:
         wandb.log(
             {
+                "Epoch": self.epoch,
+                "Step": self.step,
+                "iter": self.iter,
                 "Accum Loss": self.running_loss,
                 "Last Original Loss": loss.item(),
                 "Learning Rate": self.optimizer.param_groups[0]["lr"],
-                "Epoch": self.epoch,
-                "Step": self.step,
             }
         )
 
@@ -180,10 +181,10 @@ class Trainer:
         self.logger.info(f"Step {self.step} Validation -> loss: {self.valid_loss} | ppl: {self.valid_ppl}")
         wandb.log(
             {
-                "valid loss": self.valid_loss,
-                "valid ppl": self.valid_ppl,
                 "Epoch": self.epoch,
                 "Step": self.step,
+                "valid loss": self.valid_loss,
+                "valid ppl": self.valid_ppl,
             }
         )
 
