@@ -45,6 +45,7 @@ model:
 training:
   num_epochs: 3
   batch_size: 2
+  grad_accum_steps: 128
   use_fsdp: true
   lr: 0.000007
   val_every_step: 5000
@@ -58,4 +59,4 @@ training:
   amp_precision: bfloat16
   weight_precision: float32
   enable_mixed_precision: true  
-  model_save_dir: '/backup/tmp/mbaba/xlstm/checkpoints/train-${basic.project_tag}-${dataset.name}'
+  model_save_dir: 'src/checkpoints/train-${basic.project_tag}-${dataset.name}'

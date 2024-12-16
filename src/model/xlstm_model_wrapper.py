@@ -11,13 +11,14 @@ from torch.distributed.fsdp.wrap import size_based_auto_wrap_policy
 from xlstm import xLSTMLMModel
 
 from src.cfg.config_type import ExperimentConfig
-from src.utils import torch_dtype_map
+from src.utils import get_logger, torch_dtype_map
 
 
 # ruff: noqa: N801
 class xLSTMModelWrapper:
     def __init__(self, config: ExperimentConfig, rank: int, model_weight_path: str | None) -> None:
         self.config = config
+        self.logger = get_logger(f"xLSTMModelWrapper: {rank}")
         self.rank = rank
         self.model_weight_path = model_weight_path
         self.model = xLSTMLMModel(self.config.model)
@@ -28,8 +29,10 @@ class xLSTMModelWrapper:
         self.model = self.model.to(self.rank)
 
         if self.config.basic.mode == "train":
+            self.logger.info("Training mode")
             self._train()
         elif self.config.basic.mode == "eval":
+            self.logger.info("Evaluation mode")
             self._eval()
         else:
             raise ValueError(self.config.basic.mode)
@@ -40,6 +43,7 @@ class xLSTMModelWrapper:
 
     def load_checkpoint(self) -> None:
         if self.model_weight_path is not None:
+            self.logger.info(f"Loading checkpoint from {self.model_weight_path}")
             self.model.load_state_dict(torch.load(self.model_weight_path))
 
     def _train(self) -> None:
@@ -50,6 +54,7 @@ class xLSTMModelWrapper:
         self.model.eval()
 
     def _wrap_fsdp(self, model: torch.nn.Module) -> torch.nn.Module:
+        self.logger.info("Wrapping model with FSDP")
         return FSDP(
             model,
             sharding_strategy=ShardingStrategy.SHARD_GRAD_OP,

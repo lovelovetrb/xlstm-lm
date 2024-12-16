@@ -44,6 +44,7 @@ model:
 training:
   num_epochs: 3
   batch_size: 2
+  grad_accum_steps: 8
   use_fsdp: true
   lr: 0.001
   val_every_step: 10

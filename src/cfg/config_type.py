@@ -31,6 +31,7 @@ class TokenizerConfig:
 class TrainingConfig:
     num_epochs: int
     batch_size: int
+    grad_accum_steps: int
     use_fsdp: bool
     lr: float
     val_every_step: int

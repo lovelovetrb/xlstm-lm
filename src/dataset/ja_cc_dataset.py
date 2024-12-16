@@ -15,5 +15,4 @@ class JaCCDataset:
             split=subset,
             trust_remote_code=True,
             streaming=True,
-            cache_dir="/backup/tmp/huggingface_cache",
         )
