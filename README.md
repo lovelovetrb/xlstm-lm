@@ -11,7 +11,7 @@
         <img src="https://img.shields.io/badge/-Ruff-EEE.svg?logo=ruff&style=popout-square">
     </a>
     <a href="https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml">
-        <img src="https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml/badge.svg">
+        <img src="https://github.com/lovelovetrb/xlstm-lm/actions/workflows/lint-python.yml/badge.svg?event=push">
     </a>
 </p>
 
