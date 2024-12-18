@@ -192,7 +192,6 @@ class Trainer:
         pass
 
     def save_model_wrapper(self, save_path: str) -> None:
-        dist.barrier()
         if self.rank == 0:
             self.logger.info(f"checkpoint saving : {save_path}")
         if self.config.training.use_fsdp:
