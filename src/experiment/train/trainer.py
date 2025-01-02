@@ -4,11 +4,11 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
-import wandb
 from torch.distributed.fsdp import FullStateDictConfig, StateDictType
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from tqdm import tqdm
 
+import wandb
 from src.cfg.config_type import ExperimentConfig
 from src.utils import get_logger, torch_dtype_map
 
@@ -147,21 +147,15 @@ class Trainer:
             dist.barrier()
 
     def _valid(self) -> None:
-        dist.barrier()
         self.save_model_wrapper(f"{self.config.training.model_save_dir}/model_{self.step}.pth")
-        dist.barrier()
         self.model.eval()
-        dist.barrier()
         self.valid_loss = 0.0
         self.train_loader.dataset.set_start_index(self.iter)
         self._valid_step()
-        dist.barrier()
         self.train_loader.dataset.set_start_index(self.iter + self.config.training.val_steps)
-        dist.barrier()
 
     def _valid_step(self) -> None:
         self.logger.info(f"Step {self.step} Validation...\n")
-        dist.barrier()
         for step, batch in self._get_progress_bar():
             feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
             with torch.no_grad():
@@ -195,6 +189,9 @@ class Trainer:
         if self.rank == 0:
             self.logger.info(f"checkpoint saving : {save_path}")
         if self.config.training.use_fsdp:
+            self.logger.info(f"dist barrier start {self.rank}")
+            dist.barrier()
+            self.logger.info(f"dist barrier finish {self.rank}")
             with FSDP.state_dict_type(
                 self.model,
                 StateDictType.FULL_STATE_DICT,
@@ -203,17 +200,24 @@ class Trainer:
                 ),
             ):
                 if self.rank == 0:
+                    self.logger.info(f"save now {self.rank}")
                     self.save_model(save_path)
-                dist.barrier()
+                    self.logger.info(f"save finish {self.rank}")
+
+            self.logger.info(f"waiting... {self.rank}")
+            dist.barrier()
+            self.logger.info(f"waited {self.rank}")
+
         else:
             if self.rank == 0:
                 self.save_model(save_path)
             dist.barrier()
 
-        dist.barrier()
         self.model.train()
 
     def save_model(self, save_path: str) -> None:
+        self.logger.info("Starting to collect state dict...")
         state_dict = self.model.state_dict()
+        self.logger.info("State dict collected, starting to save...")
         torch.save(state_dict, save_path)
         self.logger.info(f"Model has been saved to {save_path}")
