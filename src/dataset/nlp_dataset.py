@@ -26,7 +26,7 @@ class DistributedIterableWrapper(IterableDataset):
         """データセットの開始位置を設定"""
         self.start_index = start_index
         self._iterator = None
-        self._skip_counter = 0
+        self._skip_counter = start_index
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
@@ -100,6 +100,10 @@ class NlpDatasetGenerator:
                 self.logger.info(f"Loading {subset} dataset from ja_cc...(this may take a while)")
                 ja_cc_wiki_dataset = JaCCDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg, self.tokenizer)
+            elif dataset_name.startswith("local_"):
+                self.logger.info(f"Loading {subset} dataset from local_file...(this may take a while)")
+                local_dataset = JaCCDataset(self.cfg, subset=subset)
+                self.datasets[subset] = NlpDataset(local_dataset.data, self.cfg, self.tokenizer)
             else:
                 self.logger.error(f"Dataset {dataset_name} not supported")
                 raise ValueError(dataset_name)
