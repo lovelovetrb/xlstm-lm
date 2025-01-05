@@ -154,6 +154,7 @@ class Trainer:
         self.train_loader.dataset.set_start_index(self.iter)
         self._valid_step()
         self.train_loader.dataset.set_start_index(self.iter + self.config.training.val_steps)
+        self.model.train()
 
     def _valid_step(self) -> None:
         self.logger.info(f"Step {self.step} Validation...\n")
@@ -213,8 +214,6 @@ class Trainer:
             if self.rank == 0:
                 self.save_model(save_path)
             dist.barrier()
-
-        self.model.train()
 
     def save_model(self, state_dict: Dict[str, torch.Tensor], save_path: str):
         torch.save(state_dict, save_path)
