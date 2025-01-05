@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict
 
 import torch
 import torch.distributed as dist
@@ -199,14 +200,14 @@ class Trainer:
                     rank0_only=True,
                 ),
             ):
-                if self.rank == 0:
-                    self.logger.info(f"save now {self.rank}")
-                    self.save_model(save_path)
-                    self.logger.info(f"save finish {self.rank}")
+                dist.barrier()
+                state_dict = self.model.state_dict()
+                self.logger.info(f"collected state dict... {self.rank}")
 
-            self.logger.info(f"waiting... {self.rank}")
+                if self.rank == 0:
+                    self.save_model(state_dict, save_path)
+
             dist.barrier()
-            self.logger.info(f"waited {self.rank}")
 
         else:
             if self.rank == 0:
@@ -215,9 +216,6 @@ class Trainer:
 
         self.model.train()
 
-    def save_model(self, save_path: str) -> None:
-        self.logger.info("Starting to collect state dict...")
-        state_dict = self.model.state_dict()
-        self.logger.info("State dict collected, starting to save...")
+    def save_model(self, state_dict: Dict[str, torch.Tensor], save_path: str):
         torch.save(state_dict, save_path)
         self.logger.info(f"Model has been saved to {save_path}")
