@@ -6,9 +6,6 @@ import argparse
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-from dacite import Config as DaciteConfig
-from dacite import from_dict
-from omegaconf import OmegaConf
 from transformers import AutoTokenizer, set_seed
 
 from src.experiment.setup.model import setup_model
@@ -17,9 +14,10 @@ from src.utils import dist_cleanup, dist_setup, get_logger
 
 
 class TextGenerator:
-    def __init__(self, model, eos_token_id):
+    def __init__(self, model, eos_token_id, rank):
         self.model = model
         self.eos_token_id = eos_token_id
+        self.rank = rank
 
     def generate_text(
         self,
@@ -39,7 +37,7 @@ class TextGenerator:
         vocab_size = self.model.config.vocab_size
 
         if use_beam_search:
-            beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=start_sequence.device)
+            beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=self.rank)
             beam_scores[:, 1:] = -1e9
             beam_sequences = start_sequence.repeat(1, num_beams).view(batch_size * num_beams, -1)
             done = [False for _ in range(batch_size)]
@@ -110,7 +108,7 @@ class TextGenerator:
                             done[batch_idx] = True
 
                 beam_sequences = torch.stack(new_sequences).view(batch_size * num_beams, -1)
-                beam_scores = torch.tensor(new_scores, device=start_sequence.device).view(batch_size, num_beams)
+                beam_scores = torch.tensor(new_scores, device=self.rank).view(batch_size, num_beams)
 
                 if all(done):
                     break
@@ -179,12 +177,10 @@ class TextGenerator:
         return generated_sequences
 
 
-def main(rank, world_size, config):
-    # os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, config.basic.device_ids))
+def main(rank, world_size, config, start_sentence):
     logger = get_logger(__name__)
     set_seed(config.basic.seed)
     dist_setup(rank, world_size, logger)
-    torch.cuda.set_device(rank)
 
     model = setup_model(config, rank, config.basic.model_weight_path)
 
@@ -192,12 +188,16 @@ def main(rank, world_size, config):
     tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
     eos_token_id = tokenizer.eos_token_id
 
-    text = "[BOS]著作権"
+    text = "[BOS] " + start_sentence
     tokenized_text = tokenizer(text, return_tensors="pt")
+    text_id = tokenized_text["input_ids"].to(rank)
 
-    generated_text = TextGenerator(model, eos_token_id).generate_text(
-        tokenized_text["input_ids"].to(config.basic.device),
-        max_length=config.dataset.max_seq_length,
+    generator = TextGenerator(model, eos_token_id, rank)
+
+    generated_text = generator.generate_text(
+        text_id,
+        # max_length=config.dataset.max_seq_length,
+        max_length=512,
         temperature=0.8,
         top_k=50,
         top_p=0.95,
@@ -217,7 +217,10 @@ def main(rank, world_size, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
-    config = load_config(parser.parse_args().config_path)
+    parser.add_argument("--start_sentence", type=str)
+    args = parser.parse_args()
+    config = load_config(args.config_path)
+    start_sentence = args.start_sentence
     WORLD_SIZE = torch.cuda.device_count()
 
-    mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)
+    mp.spawn(main, args=(WORLD_SIZE, config, start_sentence), nprocs=WORLD_SIZE, join=True)
