@@ -7,6 +7,7 @@ from transformers import AutoTokenizer
 
 from src.cfg.config_type import ExperimentConfig
 from src.dataset.ja_cc_dataset import JaCCDataset
+from src.dataset.ja_local_dataset import JaLocalDataset
 from src.dataset.ja_wiki_dataset import JaWikiDataset
 from src.dataset.ntp_data_generator import NextTokenPredictionDataGenerator
 from src.dataset.slim_pajama_dataset import SlimPajamaDataset
@@ -102,7 +103,7 @@ class NlpDatasetGenerator:
                 self.datasets[subset] = NlpDataset(ja_cc_wiki_dataset.data, self.cfg, self.tokenizer)
             elif dataset_name.startswith("local_"):
                 self.logger.info(f"Loading {subset} dataset from local_file...(this may take a while)")
-                local_dataset = JaCCDataset(self.cfg, subset=subset)
+                local_dataset = JaLocalDataset(self.cfg, subset=subset)
                 self.datasets[subset] = NlpDataset(local_dataset.data, self.cfg, self.tokenizer)
             else:
                 self.logger.error(f"Dataset {dataset_name} not supported")
