@@ -5,15 +5,15 @@ basic:
   mode: 'train' # 'train' or 'eval'
   project_name: 'xlstm_genkai'
   project_tag: 'xlstm_1.3b_grad_accum_v2'
-  model_weight_path: "${training.model_save_dir}/model_200.pth"
+  # model_weight_path: "${training.model_save_dir}/model_200.pth"
+  model_weight_path: ""
 
 
 dataset:
-  name: 'ja_wiki'
+  name: 'local_twi_unigram_dep_4'
   min_seq_length: 15
   max_seq_length: 2048
   subset: ["train"]
-  # subset: ["train", "validation", "test"]
   train_ratio: 0.8
   valid_ratio: 0.1
   test_ratio: 0.1
@@ -49,18 +49,14 @@ model:
 training:
   num_epochs: 3
   batch_size: 2
-  # grad_accum_steps: 128
   grad_accum_steps: 32
   use_fsdp: true
-  # lr: 0.0001
-  lr: 0.00007
+  lr: 0.0001
   val_every_step: 400
   val_steps: 1000
-  # lr_warmup_steps: 750
-  lr_warmup_steps: 2000
+  lr_warmup_steps: 750
   lr_decay_until_steps: ${.num_steps}
-  # lr_decay_factor: 0.001
-  lr_decay_factor: 0.002
+  lr_decay_factor: 0.001
   weight_decay: 0.1
   # TODO: 正しいステップ数を設定する
   num_steps: 286102
