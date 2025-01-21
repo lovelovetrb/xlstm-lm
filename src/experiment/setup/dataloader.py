@@ -1,4 +1,3 @@
-import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
@@ -23,7 +22,7 @@ def setup_dataloader(
         dataset,
         batch_size=config.training.batch_size,
         drop_last=True,
-        num_workers=torch.cuda.device_count(),
+        num_workers=1,
         pin_memory=True,
         shuffle=False,
     )
