@@ -9,15 +9,17 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, set_seed
 
 from src.experiment.setup.model import setup_model
+from src.experiment.setup.tokenizer import setup_tokenizer
 from src.cfg.load_yaml_cfg import load_config
 from src.utils import dist_cleanup, dist_setup, get_logger
 
 
 class TextGenerator:
-    def __init__(self, model, eos_token_id, rank):
+    def __init__(self, model, eos_token_id, rank, tokenizer):
         self.model = model
         self.eos_token_id = eos_token_id
         self.rank = rank
+        self.tokenizer = tokenizer
 
     def generate_text(
         self,
@@ -49,7 +51,8 @@ class TextGenerator:
                     model_inputs = model_inputs[:, -max_length:]
                     print(f"Truncated input to length: {model_inputs.shape[1]}")
 
-                outputs = self.model(model_inputs)
+                with torch.no_grad():
+                    outputs = self.model(model_inputs)
                 next_token_logits = outputs[:, -1, :]
 
                 del model_inputs
@@ -119,62 +122,31 @@ class TextGenerator:
                 best_score, best_idx = beam_scores[batch_idx].max(dim=0)
                 generated_sequences.append(beam_sequences[batch_idx * num_beams + best_idx].cpu().tolist())
 
+            return generated_sequences
+
         else:
-            # Original sampling-based generation code (as in the previous version)
-            current_sequences = start_sequence.repeat(num_return_sequences, 1)
-            generated_sequences = []
+            print("ビームサーチなし")
+            with torch.no_grad():
+                current_sequence = start_sequence
+                for _ in range(max_length):
+                    # モデルの出力を取得
 
-            for _ in range(max_length):
-                with torch.no_grad():
-                    outputs = self.model(current_sequences)
-
-                next_token_logits = outputs[:, -1, :] / temperature
-
-                # Apply repetition penalty
-                if repetition_penalty != 1.0:
-                    for i in range(num_return_sequences):
-                        for previous_token in set(current_sequences[i].tolist()):
-                            next_token_logits[i, previous_token] /= repetition_penalty
-
-                # Apply top-k filtering
-                if top_k > 0:
-                    indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
-                    next_token_logits[indices_to_remove] = float("-inf")
-
-                # Apply top-p (nucleus) filtering
-                if top_p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
-                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-                    sorted_indices_to_remove[..., 0] = 0
-                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                    next_token_logits[indices_to_remove] = float("-inf")
-
-                if do_sample:
+                    print(self.tokenizer.decode(current_sequence[0]))
+                    print(current_sequence[0])
+                    outputs = self.model(current_sequence)
+                    next_token_logits = outputs[:, -1, :] / temperature
+                    # 次のトークンを確率的にサンプリング
                     probs = F.softmax(next_token_logits, dim=-1)
-                    next_tokens = torch.multinomial(probs, num_samples=1)
-                else:
-                    next_tokens = torch.argmax(next_token_logits, dim=-1).unsqueeze(-1)
+                    next_token = torch.multinomial(probs, num_samples=1)
 
-                current_sequences = torch.cat([current_sequences, next_tokens], dim=-1)
+                    # 現在のシーケンスに追加
+                    current_sequence = torch.cat([current_sequence, next_token], dim=-1)
 
-                # Check if any sequence has generated the EOS token
-                eos_generated = (next_tokens.squeeze(-1) == self.eos_token_id).any(dim=0)
+                    # EOS トークンが生成されたら終了
+                    if next_token.item() == self.eos_token_id:
+                        break
 
-                if eos_generated:
-                    for idx, seq in enumerate(current_sequences):
-                        if seq[-1] == self.eos_token_id or _ == max_length - 1:
-                            generated_sequences.append(seq.tolist())
-                            current_sequences = current_sequences[torch.arange(current_sequences.size(0)) != idx]
-                            if len(current_sequences) == 0:
-                                return generated_sequences
-
-            # If we've reached here, it means we've hit max_length for all sequences
-            for seq in current_sequences:
-                generated_sequences.append(seq.tolist())
-
-        return generated_sequences
+            return current_sequence.tolist()
 
 
 def main(rank, world_size, config, start_sentence):
@@ -184,15 +156,16 @@ def main(rank, world_size, config, start_sentence):
 
     model = setup_model(config, rank, config.basic.model_weight_path)
 
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.name)
-    tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
+    tokenizer = setup_tokenizer(config.tokenizer.name)
     eos_token_id = tokenizer.eos_token_id
 
-    text = "[BOS] " + start_sentence
+    if start_sentence is None:
+        start_sentence = ""
+    text = "[BOS]" + start_sentence
     tokenized_text = tokenizer(text, return_tensors="pt")
     text_id = tokenized_text["input_ids"].to(rank)
 
-    generator = TextGenerator(model, eos_token_id, rank)
+    generator = TextGenerator(model, eos_token_id, rank, tokenizer)
 
     generated_text = generator.generate_text(
         text_id,
@@ -209,7 +182,9 @@ def main(rank, world_size, config, start_sentence):
         length_penalty=1.5,
     )
     if rank == 0:
+        print("---")
         print(tokenizer.decode(generated_text[0]))
+        print("---")
 
     dist_cleanup()
 
