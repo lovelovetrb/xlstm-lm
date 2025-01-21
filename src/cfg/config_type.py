@@ -11,7 +11,7 @@ class BasicConfig:
     project_name: str
     project_tag: str
     mode: str
-    model_weight_path: str
+    model_weight_path: str | None
 
 
 @dataclass
