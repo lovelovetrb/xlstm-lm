@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 import wandb
 from src.cfg.config_type import ExperimentConfig
+from src.experiment.setup.tokenizer import setup_tokenizer
 from src.utils import get_logger, torch_dtype_map
 
 
@@ -42,6 +43,9 @@ class Trainer:
         self.iter = 0
         self.running_loss = torch.tensor(0.0).to(self.rank)
         self.valid_loss = torch.tensor(0.0).to(self.rank)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=args.config.training.enable_mixed_precision)
+
+        self.tokenizer = setup_tokenizer(self.config.tokenizer.name)
 
         # checkpoint保存用のディレクトリを作成
         if args.rank == 0:
@@ -90,13 +94,15 @@ class Trainer:
 
     def _train_step(self, batch_idx: int, batch: dict) -> None:
         feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
+        self._clear_cache()
         with torch.autocast(
             device_type=self.config.basic.device,
             dtype=torch_dtype_map[self.config.training.amp_precision],
             enabled=self.config.training.enable_mixed_precision,
         ):
-            self._clear_cache()
+            # feature.shape: (batch_size, seq_len)
             outputs = self.model(feature)
+            # outputs.shape: (batch_size, seq_len, vocab_size)
             loss = self._compute_loss(outputs, label)
         self._backward(loss)
         self._accumulate_loss(loss)
@@ -105,7 +111,7 @@ class Trainer:
             self._optimize()
             self._update_running_loss()
             self._check_nan_loss()
-            self._step_logging(loss * self.config.training.grad_accum_steps)
+            self._step_logging(loss)
             self._validate_if_needed()
             self.step += 1
 
@@ -121,12 +127,21 @@ class Trainer:
         return loss / self.config.training.grad_accum_steps
 
     def _backward(self, loss: torch.Tensor) -> None:
-        loss.backward()
+        if self.config.training.enable_mixed_precision:
+            self.scaler.scale(loss).backward()
+        else:
+            loss.backward()
 
     def _optimize(self) -> None:
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-        self.lr_scheduler.step()
+        if self.config.training.enable_mixed_precision:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
+            self.lr_scheduler.step()
+        else:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            self.lr_scheduler.step()
 
     def _accumulate_loss(self, loss: torch.Tensor) -> None:
         if not hasattr(self, "_accumulated_loss"):
@@ -134,7 +149,7 @@ class Trainer:
         self._accumulated_loss += loss.item() * self.config.training.grad_accum_steps
 
     def _update_running_loss(self) -> None:
-        self.running_loss = self._accumulated_loss / self.config.training.grad_accum_steps
+        self.running_loss = self._accumulated_loss
         self._accumulated_loss = 0
 
     def _check_nan_loss(self) -> None:
@@ -162,6 +177,7 @@ class Trainer:
             feature, label = batch["feature"].to(self.rank), batch["label"].to(self.rank)
             with torch.no_grad():
                 outputs = self.model(feature)
+                self.text_generate(outputs)
                 loss = self._compute_loss(outputs, label)
                 loss *= self.config.training.grad_accum_steps
                 self.valid_loss += loss.item()
@@ -184,8 +200,8 @@ class Trainer:
             }
         )
 
-    def text_generate(self) -> None:
-        pass
+    def text_generate(self, outputs) -> None:
+        self.logger.info(f"after model: {self.tokenizer.decode(torch.argmax(outputs, dim=-1)[0])}")
 
     def save_model_wrapper(self, save_path: str) -> None:
         if self.rank == 0:
