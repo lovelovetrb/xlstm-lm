@@ -32,6 +32,7 @@ class Trainer:
         if args.rank == 0:
             self.logger.info("Trainer initializing...")
         self.model = args.model
+        wandb.watch(self.model)
         self.train_loader = args.train_loader
         self.lr_scheduler = args.lr_scheduler
         self.optimizer = args.optimizer
@@ -200,8 +201,9 @@ class Trainer:
             }
         )
 
-    def text_generate(self, outputs) -> None:
-        self.logger.info(f"after model: {self.tokenizer.decode(torch.argmax(outputs, dim=-1)[0])}")
+    def text_generate(self, outputs: torch.Tensor) -> None:
+        if self.rank == 0:
+            self.logger.info(f"model generate text: {self.tokenizer.decode(torch.argmax(outputs, dim=-1)[0])}")
 
     def save_model_wrapper(self, save_path: str) -> None:
         if self.rank == 0:
@@ -231,6 +233,6 @@ class Trainer:
                 self.save_model(save_path)
             dist.barrier()
 
-    def save_model(self, state_dict: Dict[str, torch.Tensor], save_path: str):
+    def save_model(self, state_dict: Dict[str, torch.Tensor], save_path: str) -> None:
         torch.save(state_dict, save_path)
         self.logger.info(f"Model has been saved to {save_path}")

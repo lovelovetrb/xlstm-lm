@@ -6,7 +6,7 @@ import argparse
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-from transformers import AutoTokenizer, set_seed
+from transformers import set_seed
 
 from src.experiment.setup.model import setup_model
 from src.experiment.setup.tokenizer import setup_tokenizer
@@ -20,6 +20,7 @@ class TextGenerator:
         self.eos_token_id = eos_token_id
         self.rank = rank
         self.tokenizer = tokenizer
+        self.logger = get_logger("generator")
 
     def generate_text(
         self,
@@ -39,6 +40,7 @@ class TextGenerator:
         vocab_size = self.model.config.vocab_size
 
         if use_beam_search:
+            self.logger.info("ビームサーチあり")
             beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=self.rank)
             beam_scores[:, 1:] = -1e9
             beam_sequences = start_sequence.repeat(1, num_beams).view(batch_size * num_beams, -1)
@@ -49,7 +51,6 @@ class TextGenerator:
 
                 if model_inputs.shape[1] > max_length:
                     model_inputs = model_inputs[:, -max_length:]
-                    print(f"Truncated input to length: {model_inputs.shape[1]}")
 
                 with torch.no_grad():
                     outputs = self.model(model_inputs)
@@ -125,14 +126,13 @@ class TextGenerator:
             return generated_sequences
 
         else:
-            print("ビームサーチなし")
+            self.logger.info("ビームサーチなし")
             with torch.no_grad():
                 current_sequence = start_sequence
-                for _ in range(max_length):
+                for _ in range(max_length - 1):
                     # モデルの出力を取得
 
-                    print(self.tokenizer.decode(current_sequence[0]))
-                    print(current_sequence[0])
+                    # print(self.tokenizer.decode(current_sequence[0]))
                     outputs = self.model(current_sequence)
                     next_token_logits = outputs[:, -1, :] / temperature
                     # 次のトークンを確率的にサンプリング
@@ -159,9 +159,9 @@ def main(rank, world_size, config, start_sentence):
     tokenizer = setup_tokenizer(config.tokenizer.name)
     eos_token_id = tokenizer.eos_token_id
 
-    if start_sentence is None:
-        start_sentence = ""
+    # start_sentence = "電子機器で使用される最も主要な電子回路基板の事をなんと言う？ 選択肢0: 掲示板 選択肢1: パソコン 選択肢2: マザーボード, 選択肢3: ハードディスク, 選択肢4: まな板 あなたの選択肢: "
     text = "[BOS]" + start_sentence
+    logger.info(f"Prompt : {text}")
     tokenized_text = tokenizer(text, return_tensors="pt")
     text_id = tokenized_text["input_ids"].to(rank)
 
