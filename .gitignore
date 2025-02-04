@@ -1,4 +1,5 @@
 src/checkpoints/*
+src/dataset/data
 
 wandb/
 .pytest_cache/

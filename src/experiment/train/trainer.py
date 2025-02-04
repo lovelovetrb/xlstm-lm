@@ -229,8 +229,9 @@ class Trainer:
             dist.barrier()
 
         else:
+            state_dict = self.model.state_dict()
             if self.rank == 0:
-                self.save_model(save_path)
+                self.save_model(state_dict, save_path)
             dist.barrier()
 
     def save_model(self, state_dict: Dict[str, torch.Tensor], save_path: str) -> None:
