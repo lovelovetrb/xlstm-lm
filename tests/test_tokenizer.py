@@ -2,6 +2,7 @@ from src.cfg.load_yaml_cfg import load_config
 from src.experiment.setup.dataloader import get_dataset_generator, setup_dataloader
 from src.experiment.setup.tokenizer import setup_tokenizer
 from tests.const import cfg_paths
+import torch
 
 
 def test_tokenizer(cfg_paths: dict) -> None:
@@ -22,5 +23,6 @@ def test_tokenizer(cfg_paths: dict) -> None:
         print(feature_text)
         # print(label_text)
         print("\n\n")
+        assert torch.equal(feature[1 : config.dataset.max_seq_length], label[: config.dataset.max_seq_length - 1])
         if index >= sample_num:
             break

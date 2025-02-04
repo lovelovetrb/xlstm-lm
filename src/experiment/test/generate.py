@@ -6,20 +6,21 @@ import argparse
 import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
-from dacite import Config as DaciteConfig
-from dacite import from_dict
-from omegaconf import OmegaConf
-from transformers import AutoTokenizer, set_seed
+from transformers import set_seed
 
 from src.experiment.setup.model import setup_model
+from src.experiment.setup.tokenizer import setup_tokenizer
 from src.cfg.load_yaml_cfg import load_config
 from src.utils import dist_cleanup, dist_setup, get_logger
 
 
 class TextGenerator:
-    def __init__(self, model, eos_token_id):
+    def __init__(self, model, eos_token_id, rank, tokenizer):
         self.model = model
         self.eos_token_id = eos_token_id
+        self.rank = rank
+        self.tokenizer = tokenizer
+        self.logger = get_logger("generator")
 
     def generate_text(
         self,
@@ -39,7 +40,8 @@ class TextGenerator:
         vocab_size = self.model.config.vocab_size
 
         if use_beam_search:
-            beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=start_sequence.device)
+            self.logger.info("ビームサーチあり")
+            beam_scores = torch.zeros((batch_size, num_beams), dtype=torch.float, device=self.rank)
             beam_scores[:, 1:] = -1e9
             beam_sequences = start_sequence.repeat(1, num_beams).view(batch_size * num_beams, -1)
             done = [False for _ in range(batch_size)]
@@ -49,9 +51,9 @@ class TextGenerator:
 
                 if model_inputs.shape[1] > max_length:
                     model_inputs = model_inputs[:, -max_length:]
-                    print(f"Truncated input to length: {model_inputs.shape[1]}")
 
-                outputs = self.model(model_inputs)
+                with torch.no_grad():
+                    outputs = self.model(model_inputs)
                 next_token_logits = outputs[:, -1, :]
 
                 del model_inputs
@@ -110,7 +112,7 @@ class TextGenerator:
                             done[batch_idx] = True
 
                 beam_sequences = torch.stack(new_sequences).view(batch_size * num_beams, -1)
-                beam_scores = torch.tensor(new_scores, device=start_sequence.device).view(batch_size, num_beams)
+                beam_scores = torch.tensor(new_scores, device=self.rank).view(batch_size, num_beams)
 
                 if all(done):
                     break
@@ -121,83 +123,54 @@ class TextGenerator:
                 best_score, best_idx = beam_scores[batch_idx].max(dim=0)
                 generated_sequences.append(beam_sequences[batch_idx * num_beams + best_idx].cpu().tolist())
 
+            return generated_sequences
+
         else:
-            # Original sampling-based generation code (as in the previous version)
-            current_sequences = start_sequence.repeat(num_return_sequences, 1)
-            generated_sequences = []
+            self.logger.info("ビームサーチなし")
+            with torch.no_grad():
+                current_sequence = start_sequence
+                for _ in range(max_length - 1):
+                    # モデルの出力を取得
 
-            for _ in range(max_length):
-                with torch.no_grad():
-                    outputs = self.model(current_sequences)
-
-                next_token_logits = outputs[:, -1, :] / temperature
-
-                # Apply repetition penalty
-                if repetition_penalty != 1.0:
-                    for i in range(num_return_sequences):
-                        for previous_token in set(current_sequences[i].tolist()):
-                            next_token_logits[i, previous_token] /= repetition_penalty
-
-                # Apply top-k filtering
-                if top_k > 0:
-                    indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
-                    next_token_logits[indices_to_remove] = float("-inf")
-
-                # Apply top-p (nucleus) filtering
-                if top_p < 1.0:
-                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
-                    cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-                    sorted_indices_to_remove[..., 0] = 0
-                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                    next_token_logits[indices_to_remove] = float("-inf")
-
-                if do_sample:
+                    # print(self.tokenizer.decode(current_sequence[0]))
+                    outputs = self.model(current_sequence)
+                    next_token_logits = outputs[:, -1, :] / temperature
+                    # 次のトークンを確率的にサンプリング
                     probs = F.softmax(next_token_logits, dim=-1)
-                    next_tokens = torch.multinomial(probs, num_samples=1)
-                else:
-                    next_tokens = torch.argmax(next_token_logits, dim=-1).unsqueeze(-1)
+                    next_token = torch.multinomial(probs, num_samples=1)
 
-                current_sequences = torch.cat([current_sequences, next_tokens], dim=-1)
+                    # 現在のシーケンスに追加
+                    current_sequence = torch.cat([current_sequence, next_token], dim=-1)
 
-                # Check if any sequence has generated the EOS token
-                eos_generated = (next_tokens.squeeze(-1) == self.eos_token_id).any(dim=0)
+                    # EOS トークンが生成されたら終了
+                    if next_token.item() == self.eos_token_id:
+                        break
 
-                if eos_generated:
-                    for idx, seq in enumerate(current_sequences):
-                        if seq[-1] == self.eos_token_id or _ == max_length - 1:
-                            generated_sequences.append(seq.tolist())
-                            current_sequences = current_sequences[torch.arange(current_sequences.size(0)) != idx]
-                            if len(current_sequences) == 0:
-                                return generated_sequences
-
-            # If we've reached here, it means we've hit max_length for all sequences
-            for seq in current_sequences:
-                generated_sequences.append(seq.tolist())
-
-        return generated_sequences
+            return current_sequence.tolist()
 
 
-def main(rank, world_size, config):
-    # os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, config.basic.device_ids))
+def main(rank, world_size, config, start_sentence):
     logger = get_logger(__name__)
     set_seed(config.basic.seed)
     dist_setup(rank, world_size, logger)
-    torch.cuda.set_device(rank)
 
     model = setup_model(config, rank, config.basic.model_weight_path)
 
-    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.name)
-    tokenizer.add_special_tokens({"pad_token": "[PAD]", "bos_token": "[BOS]", "eos_token": "[EOS]"})
+    tokenizer = setup_tokenizer(config.tokenizer.name)
     eos_token_id = tokenizer.eos_token_id
 
-    text = "[BOS]著作権"
+    # start_sentence = "電子機器で使用される最も主要な電子回路基板の事をなんと言う？ 選択肢0: 掲示板 選択肢1: パソコン 選択肢2: マザーボード, 選択肢3: ハードディスク, 選択肢4: まな板 あなたの選択肢: "
+    text = "[BOS]" + start_sentence
+    logger.info(f"Prompt : {text}")
     tokenized_text = tokenizer(text, return_tensors="pt")
+    text_id = tokenized_text["input_ids"].to(rank)
 
-    generated_text = TextGenerator(model, eos_token_id).generate_text(
-        tokenized_text["input_ids"].to(config.basic.device),
-        max_length=config.dataset.max_seq_length,
+    generator = TextGenerator(model, eos_token_id, rank, tokenizer)
+
+    generated_text = generator.generate_text(
+        text_id,
+        # max_length=config.dataset.max_seq_length,
+        max_length=512,
         temperature=0.8,
         top_k=50,
         top_p=0.95,
@@ -209,7 +182,9 @@ def main(rank, world_size, config):
         length_penalty=1.5,
     )
     if rank == 0:
+        print("---")
         print(tokenizer.decode(generated_text[0]))
+        print("---")
 
     dist_cleanup()
 
@@ -217,7 +192,10 @@ def main(rank, world_size, config):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config_path", type=str)
-    config = load_config(parser.parse_args().config_path)
+    parser.add_argument("--start_sentence", type=str)
+    args = parser.parse_args()
+    config = load_config(args.config_path)
+    start_sentence = args.start_sentence
     WORLD_SIZE = torch.cuda.device_count()
 
-    mp.spawn(main, args=(WORLD_SIZE, config), nprocs=WORLD_SIZE, join=True)
+    mp.spawn(main, args=(WORLD_SIZE, config, start_sentence), nprocs=WORLD_SIZE, join=True)
